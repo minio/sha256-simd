@@ -237,8 +237,13 @@
 // func block()
 TEXT ·block(SB), 7, $0
 
-	MOVQ    h+0(FP), SI // SI: &h
-//  MOVD lenmessage+32(FP), R2 // length of message
+	MOVQ  h+0(FP), SI // SI: &h
+    MOVQ  message+24(FP), R8    // &message
+    MOVQ  lenmessage+32(FP), R9 // length of message
+    CMPQ  R9, $0
+	JEQ   done_hash
+    ADDQ  R8, R9
+    MOVQ  R9, _inp_end+64(FP)   // store end of message
 
     // Register definition
     //  a -->  eax
@@ -267,11 +272,12 @@ TEXT ·block(SB), 7, $0
 	MOVOU  shuf00BA<>(SB), X10    // shuffle xBxA -> 00BA
 	MOVOU  shufDC00<>(SB), X12    // shuffle xDxC -> DC00
 
+	MOVQ  message+24(FP), SI // SI: &message
+
 loop0:
 	LEAQ constants<>(SB), BP
 
 	// byte swap first 16 dwords
-	MOVQ  message+24(FP), SI // SI: &message
     MOVOU 0*16(SI), X4
     LONG $0x0059c2c4; BYTE $0xe5 // VPSHUFB XMM4, XMM4, XMM13
     MOVOU 1*16(SI), X5
@@ -281,8 +287,10 @@ loop0:
     MOVOU 3*16(SI), X7
     LONG $0x0041c2c4; BYTE $0xfd // VPSHUFB XMM7, XMM7, XMM13
 
-    //  mov    QWORD PTR [rsp+0x8],rdi
+    MOVQ SI, _inp+72(FP)
     MOVD $0x3, DI
+
+    // Align
     //  nop    WORD PTR [rax+rax*1+0x0]
 
 	// schedule 48 input dwords, by doing 3 rounds of 16 each
@@ -347,6 +355,13 @@ loop2:
     MOVL    R10, (6*4)(SI)
     ADDL    (7*4)(SI), R11    // H7 = h + H7
     MOVL    R11, (7*4)(SI)
+
+    MOVQ _inp+72(FP), SI
+	ADDQ $64, SI
+	CMPQ _inp_end+64(FP), SI
+ 	JLO  loop0
+
+done_hash:
     RET
 
 // Constants table
