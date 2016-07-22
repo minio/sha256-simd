@@ -202,7 +202,7 @@
     ROTATE_XS
 
 
-#define DO_ROUND(a, b, c, d, e, f, g, h) \
+#define DO_ROUND(a, b, c, d, e, f, g, h, offset) \
     MOVL e, R13 \                                                        /* y0 = e                                  */
     ROLL $18, R13 \                                                      /* y0 = e >> (25-11)                       */
     MOVL a, R14 \                                                        /* y1 = a                                  */
@@ -220,8 +220,7 @@
     XORL g, R15 \                                                        /* y2 = CH = ((f^g)&e)^g                   */
     ADDL R13, R15 \                                                      /* y2 = S1 + CH                            */
     ROLL $30, R14 \                                                      /* y1 = S0 = (a>>2) ^ (a>>13) ^ (a>>22)    */
-                                 \ /* offset = \round * 4 + _XFER */
-                                 \ /* add    r15d,DWORD PTR [rsp+0x10]      y2 = k + w + S1 + CH                    */
+    ADDL _xfer+offset(FP), R15 \                                         /* y2 = k + w + S1 + CH                    */
     MOVL a, R13 \                                                        /* y0 = a                                  */
     ADDL R15, h \                                                        /*  h = h + S1 + CH + k + w                */
     MOVL a, R15 \                                                        /* y2 = a                                  */
@@ -319,21 +318,21 @@ loop1:
 loop2:
     LONG $0x4dfe59c5; BYTE $0x00 // VPADDD XMM9, XMM4, 0[RBP]   /* Add 1st constant to first part of message */
     MOVOU X9, _xfer+48(FP)
-    DO_ROUND( AX,  BX,  CX,  R8,  DX,  R9, R10, R11)
-    DO_ROUND(R11,  AX,  BX,  CX,  R8,  DX,  R9, R10)
-    DO_ROUND(R10, R11,  AX,  BX,  CX,  R8,  DX,  R9)
-    DO_ROUND( R9, R10, R11,  AX,  BX,  CX,  R8,  DX)
+    DO_ROUND( AX,  BX,  CX,  R8,  DX,  R9, R10, R11, 48)
+    DO_ROUND(R11,  AX,  BX,  CX,  R8,  DX,  R9, R10, 52)
+    DO_ROUND(R10, R11,  AX,  BX,  CX,  R8,  DX,  R9, 56)
+    DO_ROUND( R9, R10, R11,  AX,  BX,  CX,  R8,  DX, 60)
 
     LONG $0x4dfe51c5; BYTE $0x10 // VPADDD XMM9, XMM5, 16[RBP]   /* Add 2nd constant to message */
     MOVOU X9, _xfer+48(FP)
     ADDQ $32, BP
-    DO_ROUND( DX,  R9, R10, R11,  AX,  BX,  CX,  R8)
-    DO_ROUND( R8,  DX,  R9, R10, R11,  AX,  BX,  CX)
-    DO_ROUND( CX,  R8,  DX,  R9, R10, R11,  AX,  BX)
-    DO_ROUND( BX,  CX,  R8,  DX,  R9, R10, R11,  AX)
+    DO_ROUND( DX,  R9, R10, R11,  AX,  BX,  CX,  R8, 48)
+    DO_ROUND( R8,  DX,  R9, R10, R11,  AX,  BX,  CX, 52)
+    DO_ROUND( CX,  R8,  DX,  R9, R10, R11,  AX,  BX, 56)
+    DO_ROUND( BX,  CX,  R8,  DX,  R9, R10, R11,  AX, 60)
 
-    MOVOU  X4, X6
-    MOVOU  X5, X7
+    MOVOU  X6, X4
+    MOVOU  X7, X5
 
 	SUBQ    $1, DI
 	JNE     loop2
