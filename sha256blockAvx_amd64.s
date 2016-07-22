@@ -231,7 +231,7 @@
     ANDL b, R13 \                                                        /* y0 = (a|c)&b                            */
     ADDL R14, h \                                                        /*  h = h + S1 + CH + k + w + S0           */
     ORL  R15, R13 \                                                      /* y0 = MAJ = (a|c)&b)|(a&c)               */
-    ADDL R13, h b                                                         /*  h = h + S1 + CH + k + w + S0 + MAJ     */
+    ADDL R13, h                                                          /*  h = h + S1 + CH + k + w + S0 + MAJ     */
 
 
 // func block()
@@ -307,18 +307,28 @@ loop1:
 	SUBQ    $1, DI
 	JNE     loop1
 
+    MOVD $0x2, DI
 loop2:
-//  DO_ROUND( AX,  BX,  CX,  R8,  DX,  R9, R10, R11)
-//  DO_ROUND(R11,  AX,  BX,  CX,  R8,  DX,  R9, R10)
-//  DO_ROUND(R10, R11,  AX,  BX,  CX,  R8,  DX,  R9)
-//  DO_ROUND( R9, R10, R11,  AX,  BX,  CX,  R8,  DX)
+    LONG $0x4dfe59c5; BYTE $0x00 // VPADDD XMM9, XMM4, 0[RBP]   /* Add 1st constant to first part of message */
+    MOVOU X9, _xfer+48(FP)
+    DO_ROUND( AX,  BX,  CX,  R8,  DX,  R9, R10, R11)
+    DO_ROUND(R11,  AX,  BX,  CX,  R8,  DX,  R9, R10)
+    DO_ROUND(R10, R11,  AX,  BX,  CX,  R8,  DX,  R9)
+    DO_ROUND( R9, R10, R11,  AX,  BX,  CX,  R8,  DX)
 
-//  ROTATE X0-X3
+    LONG $0x4dfe51c5; BYTE $0x10 // VPADDD XMM9, XMM5, 16[RBP]   /* Add 2nd constant to message */
+    MOVOU X9, _xfer+48(FP)
+    ADDQ $32, BP
+    DO_ROUND( DX,  R9, R10, R11,  AX,  BX,  CX,  R8)
+    DO_ROUND( R8,  DX,  R9, R10, R11,  AX,  BX,  CX)
+    DO_ROUND( CX,  R8,  DX,  R9, R10, R11,  AX,  BX)
+    DO_ROUND( BX,  CX,  R8,  DX,  R9, R10, R11,  AX)
 
-//  DO_ROUND( DX,  R9, R10, R11,  AX,  BX,  CX,  R8)
-//  DO_ROUND( R8,  DX,  R9, R10, R11,  AX,  BX,  CX)
-//  DO_ROUND( CX,  R8,  DX,  R9, R10, R11,  AX,  BX)
-//  DO_ROUND( BX,  CX,  R8,  DX,  R9, R10, R11,  AX)
+    MOVOU  X4, X6
+    MOVOU  X5, X7
+
+	SUBQ    $1, DI
+	JNE     loop2
 
 	MOVQ    h+0(FP), SI // SI: &h
 	ADDL    (0*4)(SI), AX     // H0 = a + H0
