@@ -254,14 +254,14 @@ TEXT ·block(SB), 7, $0
     // y1 --> r14d
     // y2 --> r15d
 
-	MOVL    (0*4)(SI),  AX        // a = H0
-	MOVL    (1*4)(SI),  BX        // b = H1
-	MOVL    (2*4)(SI),  CX        // c = H2
-	MOVL    (3*4)(SI),  R8        // d = H3
-	MOVL    (4*4)(SI),  DX        // e = H4
-	MOVL    (5*4)(SI),  R9        // f = H5
-	MOVL    (6*4)(SI), R10        // g = H6
-	MOVL    (7*4)(SI), R11        // h = H7
+    MOVL    (0*4)(SI),  AX        // a = H0
+    MOVL    (1*4)(SI),  BX        // b = H1
+    MOVL    (2*4)(SI),  CX        // c = H2
+    MOVL    (3*4)(SI),  R8        // d = H3
+    MOVL    (4*4)(SI),  DX        // e = H4
+    MOVL    (5*4)(SI),  R9        // f = H5
+    MOVL    (6*4)(SI), R10        // g = H6
+    MOVL    (7*4)(SI), R11        // h = H7
 
 	MOVOU bflipMask<>(SB), X13
 	MOVOU  shuf00BA<>(SB), X10    // shuffle xBxA -> 00BA
@@ -330,24 +330,23 @@ loop2:
 	SUBQ    $1, DI
 	JNE     loop2
 
-	MOVQ    h+0(FP), SI // SI: &h
-	ADDL    (0*4)(SI), AX     // H0 = a + H0
-	MOVL    AX, (0*4)(SI)
-	ADDL    (1*4)(SI), BX     // H1 = b + H1
-	MOVL    BX, (1*4)(SI)
-	ADDL    (2*4)(SI), CX     // H2 = c + H2
-	MOVL    CX, (2*4)(SI)
-	ADDL    (3*4)(SI), R8     // H3 = d + H3
-	MOVL    R8, (3*4)(SI)
-	ADDL    (4*4)(SI), DX     // H4 = e + H4
-	MOVL    DX, (4*4)(SI)
-	ADDL    (5*4)(SI), R9     // H5 = f + H5
-	MOVL    R9, (5*4)(SI)
-	ADDL    (6*4)(SI), R10    // H6 = g + H6
-	MOVL    R10, (6*4)(SI)
-	ADDL    (7*4)(SI), R11    // H7 = h + H7
-	MOVL    R11, (7*4)(SI)
-
+    MOVQ    h+0(FP), SI // SI: &h
+    ADDL    (0*4)(SI), AX     // H0 = a + H0
+    MOVL    AX, (0*4)(SI)
+    ADDL    (1*4)(SI), BX     // H1 = b + H1
+    MOVL    BX, (1*4)(SI)
+    ADDL    (2*4)(SI), CX     // H2 = c + H2
+    MOVL    CX, (2*4)(SI)
+    ADDL    (3*4)(SI), R8     // H3 = d + H3
+    MOVL    R8, (3*4)(SI)
+    ADDL    (4*4)(SI), DX     // H4 = e + H4
+    MOVL    DX, (4*4)(SI)
+    ADDL    (5*4)(SI), R9     // H5 = f + H5
+    MOVL    R9, (5*4)(SI)
+    ADDL    (6*4)(SI), R10    // H6 = g + H6
+    MOVL    R10, (6*4)(SI)
+    ADDL    (7*4)(SI), R11    // H7 = h + H7
+    MOVL    R11, (7*4)(SI)
     RET
 
 // Constants table
