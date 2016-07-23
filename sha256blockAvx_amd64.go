@@ -18,33 +18,14 @@
 
 package sha256
 
-import (
-	"fmt"
-)
-
 //go:noescape
-func block(h []uint32, message []uint8, xfer []uint32)
+func blockAvx(h []uint32, message []uint8, reserved0, reserved1, reserved2, reserved3 uint64)
 
-func Sha2562(dat []byte) string {
+func blockAvxGo(dig *digest, p []byte) {
 
-	h := []uint32{0x6a09e667,
-		0xbb67ae85,
-		0x3c6ef372,
-		0xa54ff53a,
-		0x510e527f,
-		0x9b05688c,
-		0x1f83d9ab,
-		0x5be0cd19}
+	h := []uint32{dig.h[0], dig.h[1], dig.h[2], dig.h[3], dig.h[4], dig.h[5], dig.h[6], dig.h[7]}
 
-	// HACK: Just reserve some space on the stack
-	xfer := []uint32{0x0, 0x1, 0x2, 0x3}
+	blockAvx(h[:], p[:], 0, 0, 0, 0)
 
-	blocks := len(dat) / 64
-
-	if blocks > 0 {
-		block(h[:], dat[:64*blocks], xfer[:])
-	}
-
-	return fmt.Sprintf("%08x-%08x-%08x-%08x-%08x-%08x-%08x-%08x", h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7])
+	dig.h[0], dig.h[1], dig.h[2], dig.h[3], dig.h[4], dig.h[5], dig.h[6], dig.h[7] = h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]
 }
-

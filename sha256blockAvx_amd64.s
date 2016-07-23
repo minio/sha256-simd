@@ -234,7 +234,7 @@
 
 
 // func block()
-TEXT ·block(SB), 7, $0
+TEXT ·blockAvx(SB), 7, $0
 
 	MOVQ  h+0(FP), SI // SI: &h
     MOVQ  message+24(FP), R8    // &message
@@ -358,7 +358,7 @@ loop2:
     MOVQ _inp+72(FP), SI
 	ADDQ $64, SI
 	CMPQ _inp_end+64(FP), SI
- 	JLO  loop0
+ 	JNE  loop0
 
 done_hash:
     RET
