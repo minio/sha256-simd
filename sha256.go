@@ -67,8 +67,8 @@ func block(dig *digest, p []byte) {
 	//		blockAvx2Go(dig, p)
 	case avx:
 		blockAvxGo(dig, p)
-		//	case cpuid.CPU.SSSE3():
-		//		blockSseGo(dig, p)
+	case ssse3:
+		blockSsseGo(dig, p)
 	default:
 		blockGeneric(dig, p)
 	}
