@@ -245,7 +245,7 @@
     ADDL R13, h                                                          /*  h = h + S1 + CH + k + w + S0 + MAJ     */
 
 
-// func block()
+// func blockSsse(h []uint32, message []uint8, reserved0, reserved1, reserved2, reserved3 uint64)
 TEXT ·blockSsse(SB), 7, $0
 
 	MOVQ  h+0(FP), SI // SI: &h
