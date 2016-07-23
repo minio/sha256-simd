@@ -17,9 +17,8 @@
 package sha256
 
 import (
+	"crypto/sha256"
 	"hash"
-
-	"github.com/klauspost/cpuid"
 )
 
 // Size - The size of a SHA256 checksum in bytes.
@@ -64,12 +63,12 @@ func (d *digest) Reset() {
 
 func block(dig *digest, p []byte) {
 	switch true {
-//	case cpuid.CPU.AVX2():
-//		blockAvx2Go(dig, p)
-	case cpuid.CPU.AVX():
+	//	case cpuid.CPU.AVX2():
+	//		blockAvx2Go(dig, p)
+	case avx:
 		blockAvxGo(dig, p)
-//	case cpuid.CPU.SSSE3():
-//		blockSseGo(dig, p)
+		//	case cpuid.CPU.SSSE3():
+		//		blockSseGo(dig, p)
 	default:
 		blockGeneric(dig, p)
 	}
@@ -77,9 +76,14 @@ func block(dig *digest, p []byte) {
 
 // New returns a new hash.Hash computing the SHA256 checksum.
 func New() hash.Hash {
-	d := new(digest)
-	d.Reset()
-	return d
+	if avx2 || avx || ssse3 {
+		d := new(digest)
+		d.Reset()
+		return d
+	} else {
+		// default back to the standard golang implementation
+		return sha256.New()
+	}
 }
 
 // Sum256 - single caller sha256 helper
