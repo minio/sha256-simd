@@ -28,8 +28,8 @@
 package sha256
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
 
 type sha256Test struct {
