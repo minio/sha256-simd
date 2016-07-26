@@ -1,5 +1,3 @@
-// +build 386,!gccgo amd64,!gccgo, arm64,!gccgo
-
 // Minio Cloud Storage, (C) 2016 Minio, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
