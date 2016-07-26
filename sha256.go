@@ -63,12 +63,14 @@ func (d *digest) Reset() {
 
 func block(dig *digest, p []byte) {
 	switch true {
-	//	case cpuid.CPU.AVX2():
-	//		blockAvx2Go(dig, p)
+	case avx2:
+		blockAvx2Go(dig, p)
 	case avx:
 		blockAvxGo(dig, p)
 	case ssse3:
 		blockSsseGo(dig, p)
+	case armSha:
+		blockArmGo(dig, p)
 	default:
 		blockGeneric(dig, p)
 	}
@@ -76,7 +78,7 @@ func block(dig *digest, p []byte) {
 
 // New returns a new hash.Hash computing the SHA256 checksum.
 func New() hash.Hash {
-	if avx2 || avx || ssse3 {
+	if avx2 || avx || ssse3 || armSha {
 		d := new(digest)
 		d.Reset()
 		return d
