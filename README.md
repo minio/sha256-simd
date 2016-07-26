@@ -6,11 +6,11 @@ Accelerate SHA256 computations in Golang for both Intel (AVX2, AVX, SSE) as well
 
 This package is designed as a drop-in replacement for `crypto/sha256`. For Intel CPUs it has three flavors for AVX2, AVX and SSE whereby the fastest method is automatically chosen depending on CPU capabilities. For ARM CPUs with the Cryptography Extensions advantage is taken of the SHA2 instructions resulting in a massive performance improvement.
 
-This package uses Golang assembly and as such does not depend on cgo. The Intel versions are based on the implementations are described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et all.
+This package uses Golang assembly and as such does not depend on cgo. The Intel versions are based on the implementations are described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et al.
 
 ## Performance
 
-Below is the speed in MB/s for a single core (sorted from fast to slow) as well as the factor of improvement over `crypto/sha256` (when applicable).
+Below is the speed in MB/s for a single core (ranked fast to slow) as well as the factor of improvement over `crypto/sha256` (when applicable).
 
 | Processor                         | Package                      |       Speed | Improvement |
 | --------------------------------- | ---------------------------- | -----------:| -----------:|
@@ -29,7 +29,7 @@ As measured on Intel Xeon (same as above) with AVX2 version
 
 | Method  | Package            |    Speed |
 | ------- | -------------------| --------:|
-| BLAKE2B | minio/blake2b-simd | 851 MB/s |
+| BLAKE2B | [minio/blake2b-simd](https://github.com/minio/blake2b-simd) | 851 MB/s |
 | MD5     | crypto/md5         | 607 MB/s |
 | SHA1    | crypto/sha1        | 522 MB/s |
 | SHA256  | minio/sha256-simd  | 355 MB/s |
