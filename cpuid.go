@@ -21,6 +21,7 @@ package sha256
 var avx2 = haveAVX2()
 var avx = haveAVX()
 var ssse3 = haveSSSE3()
+var armSha = haveArmSha()
 
 // haveAVX returns true when there is AVX support
 func haveAVX() bool {
