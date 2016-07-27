@@ -222,7 +222,7 @@ TEXT ·blockAvx2(SB), 7, $0
     MOVQ R11, 0x58(SP)                         // save copy of stack pointer
 
     WORD $0xf8c5; BYTE $0x77                   // vzeroupper 
-    ADDQ $0x40, SI			       // input++
+    ADDQ $0x40, SI			                   // input++
     MOVL (DI), AX
     MOVQ SI, R12                               // borrow $T1
     MOVL 4(DI), BX
@@ -235,7 +235,7 @@ TEXT ·blockAvx2(SB), 7, $0
     MOVL 24(DI), R10
     MOVL 28(DI), R11
 
-    LEAQ K256<>(SB), BP                        // lea    rbp,[rip+0x0]
+    LEAQ K256<>(SB), BP
     LONG $0x856f7dc5; LONG $0x00000220         // VMOVDQA YMM8, 0x220[rbp]  /* vmovdqa ymm8,YMMWORD PTR [rip+0x220] */
     LONG $0x8d6f7dc5; LONG $0x00000240         // VMOVDQA YMM9, 0x240[rbp]  /* vmovdqa ymm9,YMMWORD PTR [rip+0x240] */
     LONG $0x956f7dc5; LONG $0x00000200         // VMOVDQA YMM10, 0x200[rbp] /* vmovdqa ymm7,YMMWORD PTR [rip+0x200] */
