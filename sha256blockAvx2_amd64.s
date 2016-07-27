@@ -34,6 +34,55 @@
 
 #include "textflag.h"
 
+//
+// Based macro for a single round. Variables a thru h are rotated around
+// between calls.
+//
+// Note that due to limitations of Golang assembly (only 2 operands allowed
+// per instruction with a source on the left and a destination on the right),
+// some instructions have to be split up into two (or more) instructions.
+// This affects performance negatively, and due to the fact that the parameters
+// are rotated, it is not possible to use ams2plan9s to work around this.
+//
+#define ROUND(a, b, c, d, e, f, g, h, t1, a0, a1, a2, a3, p, offst) \
+    ADDL offst(p), h \ // add    r11d,[rbp+0x10]     /* # h+=X[i]+K[i] */
+    ANDL e, t1 \       // and    r12d,r8d            /* f&e */
+    MOVL e, a0 \
+    RORL $0x19, a0 \   // rorx   r13d,r8d,0x19       /* rorx    ($a0,$e,$Sigma1[2] */
+    MOVL e, a2 \
+    RORL $0xb, a2 \    // rorx   r15d,r8d,0xb        /* rorx    ($a2,$e,$Sigma1[1] */
+    ADDL a1, a \       // lea    eax,[rax+r14*1]     /* h+=Sigma0(a) from the past */
+    ADDL t1, h \       // lea    r11d,[r11+r12*1]
+    MOVL e, t1 \
+    NOTL t1 \
+    ANDL g, t1 \       // andn   r12d,r8d,r10d       /* ~e&g */
+    XORL a2, a0 \      // xor    r13d,r15d
+    MOVL e, a1 \
+    RORL $0x6, a1 \    // rorx   r14d,r8d,0x6        /* rorx    ($a1,$e,$Sigma1[0] */
+    ADDL t1, h \       // lea    r11d,[r11+r12*1]    /* h+=Ch(e,f,g)=(e&f)+(~e&g) */
+    XORL a1, a0 \      // xor    r13d,r14d           /* Sigma1(e) */
+    MOVL a, a2 \       // mov    r15d,eax
+    MOVL a, t1 \
+    RORL $0x16, t1 \   // rorx   r12d,eax,0x16       /* rorx    ($a4,$a,$Sigma0[2] */
+    ADDL a0, h \       // lea    r11d,[r11+r13*1]    /* h+=Sigma1(e) */
+    XORL b, a2 \       // xor    r15d,ebx            /* a^b, b^c in next round */
+    MOVL a, a1 \
+    RORL $0xd, a1 \    // rorx   r14d,eax,0xd        /* rorx    ($a1,$a,$Sigma0[1] */
+    MOVL a, a0 \
+    RORL $0x2, a0 \    // rorx   r13d,eax,0x2        /* rorx    ($a0,$a,$Sigma0[0] */
+    ADDL h, d \        // lea    edx,[rdx+r11*1]     /*  d+=h */
+    ANDL a2, a3 \      // and    edi,r15d            /* (b^c)&(a^b) */
+    XORL t1, a1 \      // xor    r14d,r12d
+    XORL b, a3 \       // xor    edi,ebx             /* Maj(a,b,c)=Ch(a^b,c,b) */
+    XORL a0, a1 \      // xor    r14d,r13d           /* Sigma0(a) */
+    ADDL a3, h \       // lea    r11d,[r11+rdi*1]    /* h+=Maj(a,b,c) */
+    MOVL e, t1         // mov    r12d,r8d            /* copy of f in future */
+
+//
+// Identical macro to above, however intertwined with in total 8 SIMD instructions.
+// These are inserted every three instructions, with 4 instructions being 5 bytes long
+// and 4 instructions being 4 bytes long (alternated between the two of them).
+//
 #define ROUND_INTERTWINED(a, b, c, d, e, f, g, h, t1, a0, a1, a2, a3, p, offst, ins1_long, ins1_byte, ins2_long, ins3_long, ins3_byte, ins4_long, ins5_long, ins5_byte, ins6_long, ins7_long, ins7_byte, ins8_long) \
     ADDL offst(p), h \ // add    r11d,[rbp+0x10]     /* # h+=X[i]+K[i] */
     ANDL e, t1 \       // and    r12d,r8d            /* f&e */
@@ -67,40 +116,6 @@
     RORL $0xd, a1 \    // rorx   r14d,eax,0xd        /* rorx    ($a1,$a,$Sigma0[1] */
     MOVL a, a0 \
     LONG $ins8_long \
-    RORL $0x2, a0 \    // rorx   r13d,eax,0x2        /* rorx    ($a0,$a,$Sigma0[0] */
-    ADDL h, d \        // lea    edx,[rdx+r11*1]     /*  d+=h */
-    ANDL a2, a3 \      // and    edi,r15d            /* (b^c)&(a^b) */
-    XORL t1, a1 \      // xor    r14d,r12d
-    XORL b, a3 \       // xor    edi,ebx             /* Maj(a,b,c)=Ch(a^b,c,b) */
-    XORL a0, a1 \      // xor    r14d,r13d           /* Sigma0(a) */
-    ADDL a3, h \       // lea    r11d,[r11+rdi*1]    /* h+=Maj(a,b,c) */
-    MOVL e, t1         // mov    r12d,r8d            /* copy of f in future */
-
-#define ROUND(a, b, c, d, e, f, g, h, t1, a0, a1, a2, a3, p, offst) \
-    ADDL offst(p), h \ // add    r11d,[rbp+0x10]     /* # h+=X[i]+K[i] */
-    ANDL e, t1 \       // and    r12d,r8d            /* f&e */
-    MOVL e, a0 \
-    RORL $0x19, a0 \   // rorx   r13d,r8d,0x19       /* rorx    ($a0,$e,$Sigma1[2] */
-    MOVL e, a2 \
-    RORL $0xb, a2 \    // rorx   r15d,r8d,0xb        /* rorx    ($a2,$e,$Sigma1[1] */
-    ADDL a1, a \       // lea    eax,[rax+r14*1]     /* h+=Sigma0(a) from the past */
-    ADDL t1, h \       // lea    r11d,[r11+r12*1]
-    MOVL e, t1 \
-    NOTL t1 \
-    ANDL g, t1 \       // andn   r12d,r8d,r10d       /* ~e&g */
-    XORL a2, a0 \      // xor    r13d,r15d
-    MOVL e, a1 \
-    RORL $0x6, a1 \    // rorx   r14d,r8d,0x6        /* rorx    ($a1,$e,$Sigma1[0] */
-    ADDL t1, h \       // lea    r11d,[r11+r12*1]    /* h+=Ch(e,f,g)=(e&f)+(~e&g) */
-    XORL a1, a0 \      // xor    r13d,r14d           /* Sigma1(e) */
-    MOVL a, a2 \       // mov    r15d,eax
-    MOVL a, t1 \
-    RORL $0x16, t1 \   // rorx   r12d,eax,0x16       /* rorx    ($a4,$a,$Sigma0[2] */
-    ADDL a0, h \       // lea    r11d,[r11+r13*1]    /* h+=Sigma1(e) */
-    XORL b, a2 \       // xor    r15d,ebx            /* a^b, b^c in next round */
-    MOVL a, a1 \
-    RORL $0xd, a1 \    // rorx   r14d,eax,0xd        /* rorx    ($a1,$a,$Sigma0[1] */
-    MOVL a, a0 \
     RORL $0x2, a0 \    // rorx   r13d,eax,0x2        /* rorx    ($a0,$a,$Sigma0[0] */
     ADDL h, d \        // lea    edx,[rdx+r11*1]     /*  d+=h */
     ANDL a2, a3 \      // and    edi,r15d            /* (b^c)&(a^b) */
@@ -403,7 +418,6 @@ loop1:
     // LONG $0xd6feedc5               // vpaddd ymm2,ymm2,ymm6
     ROUND_INTERTWINED(R9, R10, R11, AX, BX, CX, DX, R8, R12, R13, R14, DI, R15, SP, 0x8c, 0xd772cdc5, 0x0a, 0xf8fe7dc5, 0xd773c5c5, 0x11, 0xf7efcdc5, 0xd773c5c5, 0x02, 0xf7efcdc5, 0x004dc2c4, 0xf1, 0xd6feedc5)
 
-
     LONG $0x75feedc5; BYTE $0x40   // vpaddd ymm6,ymm2,[rbp+0x40]
     LONG $0x347ffdc5; BYTE $0x24   // vmovdqa [rsp],ymm6
 
@@ -560,4 +574,3 @@ done:
     WORD $0xf8c5; BYTE $0x77     // vzeroupper
 
     RET
-
