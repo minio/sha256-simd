@@ -42,6 +42,13 @@ asm2plan9s
 
 In order to be able to work more easily with AVX2/AVX instructions, a separate tool was developed to convert AVX2/AVX instructions into the corresponding BYTE sequence as accepted by Go assembly. See [asm2plan9s](https://github.com/minio/asm2plan9s) for more information.
 
+Why and benefits
+----------------
+
+One of the most performance sensitive parts of [Minio](https://minio.io) server (object storage [server](https://github.com/minio/minio) compatible with Amazon S3) is related to SHA256 hash sums calculations. For instance during multi part uploads each part that is uploaded needs to be verified for data integrity by the server. Likewise in order to generated pre-signed URLs check sums must be calculated to ensure their validity.
+
+Other applications that can benefit from enhanced SHA256 performance are deduplication in storage systems, intrusion detection, version control systems, integrity checking, etc.
+
 ARM SHA Extensions
 ------------------
 
