@@ -34,6 +34,21 @@
 
 #include "textflag.h"
 
+#define INJECT_TEST2(ins1_long, ins1_byte) \
+    LONG $ins1_long; BYTE $ins1_byte
+
+#define INJECT_TEST(ins1_long, ins1_byte, ins2_long, ins3_long, ins3_byte, ins4_long, ins5_long, ins5_byte, ins6_long, ins7_long, ins7_byte, ins8_long) \
+    LONG $ins1_long; BYTE $ins1_byte \
+    LONG $ins2_long \
+    LONG $ins3_long; BYTE $ins3_byte \
+    LONG $ins4_long \
+    LONG $ins5_long; BYTE $ins5_byte \
+    LONG $ins6_long \
+    LONG $ins7_long; BYTE $ins7_byte \
+    LONG $ins8_long
+
+    INJECT_TEST(0xd472cdc5, 0x07, 0xc7fefdc5, 0xd472c5c5, 0x03, 0xf8fe7dc5, 0xf472d5c5, 0x0e, 0xe6efc5c5, 0xfb70fdc5, 0xfa, 0xf8fe7dc5)
+
 #define ROTATE_XS \
     MOVOU  X4, X15 \
     MOVOU  X5, X4 \
@@ -278,6 +293,8 @@ loop0:
 
 	// byte swap first 16 dwords
     MOVOU 0*16(SI), X4
+//  INJECT_TEST2(0x0059c2c4, 0xe5) /* pass */
+//  INJECT_TEST2(0x0051c2c4, 0xe5) /* fail */
     LONG $0x0059c2c4; BYTE $0xe5 // VPSHUFB XMM4, XMM4, XMM13
     MOVOU 1*16(SI), X5
     LONG $0x0051c2c4; BYTE $0xed // VPSHUFB XMM5, XMM5, XMM13
