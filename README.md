@@ -45,6 +45,25 @@ In order to be able to work more easily with AVX2/AVX instructions, a separate t
 Detailed benchmarks
 -------------------
 
+### ARM64
+
+Benchmarks generated on a 1.2 Ghz Quad-Core ARM Cortex A53 equipped [Pine64](https://www.pine64.com/). 
+
+```
+minio@minio-arm:~/gopath/src/github.com/sha256-simd$ benchcmp golang.txt arm64.txt 
+benchmark                 old ns/op     new ns/op     delta
+BenchmarkHash8Bytes-4     11836         1403          -88.15%
+BenchmarkHash1K-4         181143        3138          -98.27%
+BenchmarkHash8K-4         1365652       14356         -98.95%
+BenchmarkHash1M-4         173192200     1642954       -99.05%
+
+benchmark                 old MB/s     new MB/s     speedup
+BenchmarkHash8Bytes-4     0.68         5.70         8.38x
+BenchmarkHash1K-4         5.65         326.30       57.75x
+BenchmarkHash8K-4         6.00         570.63       95.11x
+BenchmarkHash1M-4         6.05         638.23       105.49x
+```
+
 Example performance metrics were generated on  Intel(R) Xeon(R) CPU E5-2620 v3 @ 2.40GHz - 6 physical cores, 12 logical cores running Ubuntu GNU/Linux with kernel version 4.4.0-24-generic (vanilla with no optimizations).
 
 ### AVX2
