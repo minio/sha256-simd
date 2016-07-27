@@ -23,6 +23,8 @@ Below is the speed in MB/s for a single core (ranked fast to slow) as well as th
 
 (*) Measured with the "unrolled"/"demacro-ed" AVX2 version. Due to some Golang assembly restrictions the AVX2 version that uses `defines` loses about 15% performance. The optimized version is contained in the git history so for maximum speed you want to do this after getting: `git cat-file blob 586b6e > sha256blockAvx2_amd64.s` (or vendor it for your project; see [here](https://github.com/minio/sha256-simd/blob/13b11bdf9b0580a756a111492d2ae382bab7ec79/sha256blockAvx2_amd64.s) to view it in its full glory).
  
+ See further down for detailed performance.
+ 
 ## Comparison to other hashing techniques
 
 As measured on Intel Xeon (same as above) with AVX2 version:
@@ -34,6 +36,11 @@ As measured on Intel Xeon (same as above) with AVX2 version:
 | SHA1    | crypto/sha1        | 522 MB/s |
 | SHA256  | minio/sha256-simd  | 355 MB/s |
 | SHA512  | crypto/sha512      | 306 MB/s |
+
+asm2plan9s
+----------
+
+In order to be able to work more easily with AVX2/AVX instructions, a separate tool was developed to convert AVX2/AVX instructions into the corresponding BYTE sequence as accepted by Go assembly. See [asm2plan9s](https://github.com/minio/asm2plan9s) for more information.
 
 Detailed benchmarks
 -------------------
