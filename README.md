@@ -1,12 +1,12 @@
 # sha256-simd
 
-Accelerate SHA256 computations in Golang for both Intel (AVX2, AVX, SSE) as well as ARM (arm64) platforms.
+Accelerate SHA256 computations in pure Go for both Intel (AVX2, AVX, SSE) as well as ARM (arm64) platforms.
 
 ## Introduction
 
 This package is designed as a drop-in replacement for `crypto/sha256`. For Intel CPUs it has three flavors for AVX2, AVX and SSE whereby the fastest method is automatically chosen depending on CPU capabilities. For ARM CPUs with the Cryptography Extensions advantage is taken of the SHA2 instructions resulting in a massive performance improvement.
 
-This package uses Golang assembly and as such does not depend on cgo. The Intel versions are based on the implementations are described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et al.
+This package uses Golang assembly and as such does not depend on cgo. The Intel versions are based on the implementations as described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et al.
 
 ## Performance
 
@@ -21,11 +21,11 @@ Below is the speed in MB/s for a single core (ranked fast to slow) as well as th
 | 2.4 GHz Intel Xeon CPU E5-2620 v3 | crypto/sha256                |  189.2 MB/s |             |
 | 1.2 GHz ARM Cortex-A53            | crypto/sha256                |    6.1 MB/s |             |
 
-(*) Measured with "demacroed" version (details to follow)
+(*) Measured with the "unrolled"/"demacro-ed" AVX2 version. Due to some Golang assembly restrictions the AVX2 version that uses `defines` loses about 15% performance. The optimized version is contained in the git history so for maximum speed you want to do this after getting: `git cat-file blob 586b6e > sha256blockAvx2_amd64.s`.
  
 ## Comparison to other hashing techniques
 
-As measured on Intel Xeon (same as above) with AVX2 version
+As measured on Intel Xeon (same as above) with AVX2 version:
 
 | Method  | Package            |    Speed |
 | ------- | -------------------| --------:|
