@@ -19,7 +19,7 @@
 package sha256
 
 //go:noescape
-func blockAvx2(h []uint32, message []uint8
+func blockAvx2(h []uint32, message []uint8)
 
 func blockAvx2Go(dig *digest, p []byte) {
 
