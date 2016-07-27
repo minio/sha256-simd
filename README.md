@@ -42,6 +42,24 @@ asm2plan9s
 
 In order to be able to work more easily with AVX2/AVX instructions, a separate tool was developed to convert AVX2/AVX instructions into the corresponding BYTE sequence as accepted by Go assembly. See [asm2plan9s](https://github.com/minio/asm2plan9s) for more information.
 
+ARM SHA Extensions
+------------------
+
+The 64-bit ARMv8 core has introduced new instructions for SHA1 and SHA2 acceleration as part of the [Cryptography Extensions](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0501f/CHDFJBCJ.html). Below you can see a small excerpt highlighting one of the rounds as is done for the SHA256 calculation process (for full code see [sha256block_arm64.s](https://github.com/minio/sha256-simd/blob/master/sha256block_arm64.s)).
+ 
+ ```
+ sha256h   q2, q3, v9.4s
+ sha256h2  q3, q4, v9.4s
+ sha256su0  v5.4s, v6.4s
+ rev32     v8.16b, v8.16b
+ add        v9.4s, v7.4s, v18.4s
+ mov       v4.16b, v2.16b
+ sha256h   q2, q3, v10.4s
+ sha256h2  q3, q4, v10.4s
+ sha256su0  v6.4s, v7.4s
+ sha256su1  v5.4s, v7.4s, v8.4s
+ ```
+
 Detailed benchmarks
 -------------------
 
