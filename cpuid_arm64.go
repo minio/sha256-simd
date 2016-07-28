@@ -28,5 +28,6 @@ func xgetbv(index uint32) (eax, edx uint32) {
 }
 
 func haveArmSha() bool {
+	// TODO: Implement feature detection for ARM
 	return true
 }
