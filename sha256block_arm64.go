@@ -1,4 +1,4 @@
-//+build !noasm
+// +build arm64,!noasm,!gccgo
 
 /*
  * Minio Cloud Storage, (C) 2016 Minio, Inc.

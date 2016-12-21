@@ -1,3 +1,5 @@
+// +build !386,!amd64,!arm,!arm64 noasm
+
 // Minio Cloud Storage, (C) 2016 Minio, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
