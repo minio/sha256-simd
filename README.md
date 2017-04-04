@@ -8,6 +8,34 @@ This package is designed as a drop-in replacement for `crypto/sha256`. For Intel
 
 This package uses Golang assembly and as such does not depend on cgo. The Intel versions are based on the implementations as described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et al.
 
+## Drop-In Replacement
+
+Following code snippet shows you how you can directly replace wherever `crypto/sha256` is used can be replaced with `github.com/minio/sha256-simd`.
+
+Before:
+```go
+import "crypto/sha256"
+
+func main() {
+        ...
+	shaWriter := sha256.New()
+	io.Copy(shaWriter, file)
+        ...
+}
+```
+
+After:
+```go
+import "github.com/minio/sha256-simd"
+
+func main() {
+        ...
+	shaWriter := sha256.New()
+	io.Copy(shaWriter, file)
+        ...
+}
+```
+
 ## Performance
 
 Below is the speed in MB/s for a single core (ranked fast to slow) as well as the factor of improvement over `crypto/sha256` (when applicable).
