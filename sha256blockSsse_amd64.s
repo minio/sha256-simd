@@ -1,4 +1,4 @@
-//+build !noasm !appengine
+//+build !noasm,!gccgo,!appengine
 
 // SHA256 implementation for SSSE3
 
