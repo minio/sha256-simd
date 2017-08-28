@@ -49,7 +49,7 @@ Below is the speed in MB/s for a single core (ranked fast to slow) as well as th
 | 2.4 GHz Intel Xeon CPU E5-2620 v3 | crypto/sha256             |  189.2 MB/s |             |
 | 1.2 GHz ARM Cortex-A53            | crypto/sha256             |    6.1 MB/s |             |
 
-Note that the AVX2 version is measured with the "unrolled"/"demacro-ed" version. Due to some Golang assembly restrictions the AVX2 version that uses `defines` loses about 15% performance (you can see the macrofied version, which is a little bit easier to read, here https://github.com/minio/sha256-simd/blob/e1b0a493b71bb31e3f1bf82d3b8cbd0d6960dfa6/sha256blockAvx2_amd64.s).
+Note that the AVX2 version is measured with the "unrolled"/"demacro-ed" version. Due to some Golang assembly restrictions the AVX2 version that uses `defines` loses about 15% performance (you can see the macrofied version, which is a little bit easier to read, [here](https://github.com/minio/sha256-simd/blob/e1b0a493b71bb31e3f1bf82d3b8cbd0d6960dfa6/sha256blockAvx2_amd64.s)).
  
  See further down for detailed performance.
  
