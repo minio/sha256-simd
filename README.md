@@ -2,6 +2,8 @@
 
 Accelerate SHA256 computations in pure Go for both Intel (AVX2, AVX, SSE) as well as ARM (arm64) platforms.
 
+Update: As of Go 1.8, `crypto/sha256` offers similar performance for AVX2.
+
 ## Introduction
 
 This package is designed as a drop-in replacement for `crypto/sha256`. For Intel CPUs it has three flavors for AVX2, AVX and SSE whereby the fastest method is automatically chosen depending on CPU capabilities. For ARM CPUs with the Cryptography Extensions advantage is taken of the SHA2 instructions resulting in a massive performance improvement.
@@ -46,7 +48,6 @@ Below is the speed in MB/s for a single core (ranked fast to slow) as well as th
 | 2.4 GHz Intel Xeon CPU E5-2620 v3 | minio/sha256-simd (AVX2)  |  355.0 MB/s |       1.88x |
 | 2.4 GHz Intel Xeon CPU E5-2620 v3 | minio/sha256-simd (AVX)   |  306.0 MB/s |       1.62x |
 | 2.4 GHz Intel Xeon CPU E5-2620 v3 | minio/sha256-simd (SSE)   |  298.7 MB/s |       1.58x |
-| 2.4 GHz Intel Xeon CPU E5-2620 v3 | crypto/sha256             |  189.2 MB/s |             |
 | 1.2 GHz ARM Cortex-A53            | crypto/sha256             |    6.1 MB/s |             |
 
 Note that the AVX2 version is measured with the "unrolled"/"demacro-ed" version. Due to some Golang assembly restrictions the AVX2 version that uses `defines` loses about 15% performance (you can see the macrofied version, which is a little bit easier to read, [here](https://github.com/minio/sha256-simd/blob/e1b0a493b71bb31e3f1bf82d3b8cbd0d6960dfa6/sha256blockAvx2_amd64.s)).
@@ -118,23 +119,6 @@ BenchmarkHash1M-4         6.05         638.23       105.49x
 ```
 
 Example performance metrics were generated on  Intel(R) Xeon(R) CPU E5-2620 v3 @ 2.40GHz - 6 physical cores, 12 logical cores running Ubuntu GNU/Linux with kernel version 4.4.0-24-generic (vanilla with no optimizations).
-
-### AVX2
-
-```
-$ benchcmp go.txt avx2.txt
-benchmark                  old ns/op     new ns/op     delta
-BenchmarkHash8Bytes-12     446           364           -18.39%
-BenchmarkHash1K-12         5919          3279          -44.60%
-BenchmarkHash8K-12         43791         23655         -45.98%
-BenchmarkHash1M-12         5544989       2969305       -46.45%
-
-benchmark                  old MB/s     new MB/s     speedup
-BenchmarkHash8Bytes-12     17.93        21.96        1.22x
-BenchmarkHash1K-12         172.98       312.27       1.81x
-BenchmarkHash8K-12         187.07       346.31       1.85x
-BenchmarkHash1M-12         189.10       353.14       1.87x
-```
 
 ### AVX
 
