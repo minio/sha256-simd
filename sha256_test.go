@@ -52,6 +52,7 @@ package sha256
 import (
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -1155,18 +1156,63 @@ func benchmarkSize(b *testing.B, size int) {
 	}
 }
 
-func BenchmarkHash8Bytes(b *testing.B) {
-	benchmarkSize(b, 8)
+func BenchmarkHash8Bytes(b *testing.B) { benchmarkSize(b, 8) }
+func BenchmarkHash1K(b *testing.B)     { benchmarkSize(b, 1024) }
+func BenchmarkHash8K(b *testing.B)     { benchmarkSize(b, 8192) }
+func BenchmarkHash1MAvx2(b *testing.B) { benchmarkSize(b, 1024*1024) }
+
+func createInputs(size int) [][]byte {
+	input := make([][]byte, 16)
+	input[0] = make([]byte, size)
+	input[1] = make([]byte, size)
+	input[2] = make([]byte, size)
+	input[3] = make([]byte, size)
+	input[4] = make([]byte, size)
+	input[5] = make([]byte, size)
+	input[6] = make([]byte, size)
+	input[7] = make([]byte, size)
+	input[8] = make([]byte, size)
+	input[9] = make([]byte, size)
+	input[10] = make([]byte, size)
+	input[11] = make([]byte, size)
+	input[12] = make([]byte, size)
+	input[13] = make([]byte, size)
+	input[14] = make([]byte, size)
+	input[15] = make([]byte, size)
+	return input
+}
+func TestShare256(t *testing.T) {
+
+	input := createInputs(75 * 1024 * 1024)
+	blockAvx512(input)
 }
 
-func BenchmarkHash1K(b *testing.B) {
-	benchmarkSize(b, 1024)
+func benchmarkSha256Avx512(b *testing.B, cores int, f func([][]byte)) {
+
+	const size = 1 * 1024 * 1024
+	input := createInputs(size)
+
+	b.SetBytes(int64(size * 16 * cores))
+	b.ResetTimer()
+
+	if cores == 1 {
+		for i := 0; i < b.N; i++ {
+			f(input)
+		}
+	} else {
+
+		var wg sync.WaitGroup
+
+		for i := 0; i < b.N; i++ {
+			wg.Add(cores)
+			for c := 0; c < cores; c++ {
+				go func() { f(input); wg.Done() }()
+			}
+			wg.Wait()
+		}
+	}
 }
 
-func BenchmarkHash8K(b *testing.B) {
-	benchmarkSize(b, 8192)
-}
-
-func BenchmarkHash1M(b *testing.B) {
-	benchmarkSize(b, 1024*1024)
-}
+func BenchmarkHash1MAvx512(b *testing.B)       { benchmarkSha256Avx512(b, 1, blockAvx512) }
+func BenchmarkHash1MAvx512_2Core(b *testing.B) { benchmarkSha256Avx512(b, 2, blockAvx512) }
+func BenchmarkHash1MAvx512_4Core(b *testing.B) { benchmarkSha256Avx512(b, 4, blockAvx512) }
