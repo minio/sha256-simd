@@ -1383,6 +1383,11 @@ func initDigests() *[512]byte {
 
 func testSha256Avx512(t *testing.T, offset, padding int) [16][]byte {
 
+	if !avx512 {
+		t.SkipNow()
+		return [16][]byte{}
+	}
+
 	l := uint(len(golden[offset].in))
 	extraBlock := uint(0)
 	if padding == 0 {
@@ -1421,6 +1426,11 @@ func TestAvx512_3Blocks(t *testing.T) { testSha256Avx512(t, 47, 55) }
 
 func TestAvx512_MixedBlocks(t *testing.T) {
 
+	if !avx512 {
+		t.SkipNow()
+		return
+	}
+
 	inputSingleBlock := testSha256Avx512(t, 31, 0)
 	inputMultiBlock := testSha256Avx512(t, 47, 55)
 
@@ -1450,6 +1460,11 @@ func TestAvx512_MixedBlocks(t *testing.T) {
 }
 
 func TestAvx512_MixedWithNilBlocks(t *testing.T) {
+
+	if !avx512 {
+		t.SkipNow()
+		return
+	}
 
 	inputSingleBlock := testSha256Avx512(t, 31, 0)
 	inputMultiBlock := testSha256Avx512(t, 47, 55)
@@ -1492,6 +1507,12 @@ func TestAvx512_MixedWithNilBlocks(t *testing.T) {
 }
 
 func TestAvx512Server(t *testing.T) {
+
+	if !avx512 {
+		t.SkipNow()
+		return
+	}
+
 	const offset = 31 + 16
 	server := NewAvx512Server()
 
@@ -1538,6 +1559,12 @@ func TestAvx512Server(t *testing.T) {
 }
 
 func TestAvx512Digest(t *testing.T) {
+
+	if !avx512 {
+		t.SkipNow()
+		return
+	}
+
 	server := NewAvx512Server()
 
 	const tests = 16
@@ -1600,6 +1627,12 @@ func benchmarkAvx512SingleCore(h512 []hash.Hash, body []byte) {
 }
 
 func benchmarkAvx512(b *testing.B, size int) {
+
+	if !avx512 {
+		b.SkipNow()
+		return
+	}
+
 	server := NewAvx512Server()
 
 	const tests = 16
@@ -1624,6 +1657,11 @@ func BenchmarkAvx512_5M(b *testing.B)  { benchmarkAvx512(b, 5*1024*1024) }
 func BenchmarkAvx512_10M(b *testing.B) { benchmarkAvx512(b, 10*1024*1024) }
 
 func benchmarkAvx512MultiCore(b *testing.B, size, cores int) {
+
+	if !avx512 {
+		b.SkipNow()
+		return
+	}
 
 	servers := make([]*Avx512Server, cores)
 	for c := 0; c < cores; c++ {
