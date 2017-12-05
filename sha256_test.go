@@ -50,9 +50,15 @@
 package sha256
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
+	"hash"
+	"reflect"
+	"strings"
+	"sync"
 	"testing"
+	"encoding/binary"
 )
 
 type sha256Test struct {
@@ -160,39 +166,6 @@ var golden = []sha256Test{
 		(0 * 1) + (1 * 2) + (1 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
 		(1 * 1) + (1 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (0 * 64) + (0 * 128)},
 		"ab"},
-	{[32]byte{(0 * 1) + (1 * 2) + (0 * 4) + (1 * 8) + (1 * 16) + (1 * 32) + (0 * 64) + (1 * 128),
-		(0 * 1) + (0 * 2) + (0 * 4) + (1 * 8) + (1 * 16) + (1 * 32) + (1 * 64) + (0 * 128),
-		(0 * 1) + (1 * 2) + (1 * 4) + (0 * 8) + (1 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
-		(1 * 1) + (1 * 2) + (1 * 4) + (1 * 8) + (1 * 16) + (1 * 32) + (0 * 64) + (1 * 128),
-		(1 * 1) + (1 * 2) + (1 * 4) + (1 * 8) + (0 * 16) + (0 * 32) + (0 * 64) + (1 * 128),
-		(1 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
-		(1 * 1) + (1 * 2) + (1 * 4) + (1 * 8) + (0 * 16) + (0 * 32) + (1 * 64) + (1 * 128),
-		(0 * 1) + (1 * 2) + (0 * 4) + (1 * 8) + (0 * 16) + (1 * 32) + (1 * 64) + (1 * 128),
-		(1 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (1 * 64) + (0 * 128),
-		(1 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (1 * 64) + (0 * 128),
-		(0 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (1 * 64) + (0 * 128),
-		(0 * 1) + (1 * 2) + (1 * 4) + (1 * 8) + (1 * 16) + (0 * 32) + (1 * 64) + (1 * 128),
-		(1 * 1) + (0 * 2) + (1 * 4) + (1 * 8) + (1 * 16) + (0 * 32) + (1 * 64) + (0 * 128),
-		(0 * 1) + (1 * 2) + (1 * 4) + (1 * 8) + (0 * 16) + (1 * 32) + (0 * 64) + (1 * 128),
-		(0 * 1) + (1 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (1 * 32) + (0 * 64) + (0 * 128),
-		(1 * 1) + (1 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (1 * 32) + (0 * 64) + (0 * 128),
-		(0 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (1 * 16) + (1 * 32) + (0 * 64) + (1 * 128),
-		(1 * 1) + (1 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
-		(1 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (1 * 32) + (1 * 64) + (0 * 128),
-		(1 * 1) + (1 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (1 * 32) + (0 * 64) + (1 * 128),
-		(0 * 1) + (1 * 2) + (1 * 4) + (0 * 8) + (1 * 16) + (0 * 32) + (0 * 64) + (1 * 128),
-		(1 * 1) + (1 * 2) + (1 * 4) + (0 * 8) + (1 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
-		(0 * 1) + (1 * 2) + (0 * 4) + (1 * 8) + (1 * 16) + (1 * 32) + (1 * 64) + (0 * 128),
-		(0 * 1) + (0 * 2) + (1 * 4) + (1 * 8) + (1 * 16) + (0 * 32) + (0 * 64) + (1 * 128),
-		(0 * 1) + (0 * 2) + (1 * 4) + (0 * 8) + (1 * 16) + (1 * 32) + (0 * 64) + (1 * 128),
-		(0 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (1 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
-		(1 * 1) + (1 * 2) + (1 * 4) + (1 * 8) + (1 * 16) + (1 * 32) + (1 * 64) + (1 * 128),
-		(1 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (1 * 32) + (1 * 64) + (0 * 128),
-		(0 * 1) + (1 * 2) + (0 * 4) + (0 * 8) + (1 * 16) + (1 * 32) + (1 * 64) + (1 * 128),
-		(0 * 1) + (0 * 2) + (0 * 4) + (0 * 8) + (0 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
-		(1 * 1) + (0 * 2) + (1 * 4) + (0 * 8) + (1 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
-		(1 * 1) + (0 * 2) + (1 * 4) + (1 * 8) + (0 * 16) + (1 * 32) + (0 * 64) + (1 * 128)},
-		"abc"},
 	{[32]byte{(0 * 1) + (1 * 2) + (0 * 4) + (1 * 8) + (1 * 16) + (1 * 32) + (0 * 64) + (1 * 128),
 		(0 * 1) + (0 * 2) + (0 * 4) + (1 * 8) + (1 * 16) + (1 * 32) + (1 * 64) + (0 * 128),
 		(0 * 1) + (1 * 2) + (1 * 4) + (0 * 8) + (1 * 16) + (0 * 32) + (0 * 64) + (0 * 128),
@@ -1117,6 +1090,230 @@ var golden = []sha256Test{
 		(1 * 1) + (1 * 2) + (1 * 4) + (1 * 8) + (0 * 16) + (0 * 32) + (0 * 64) + (1 * 128),
 		(0 * 1) + (1 * 2) + (1 * 4) + (0 * 8) + (0 * 16) + (1 * 32) + (1 * 64) + (1 * 128)},
 		"How can you write a big system without C++?  -Paul Glick"},
+	// $ echo -n "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123" | sha256sum
+	// 13d8b6bf5cc79c03c07c719c48597bd33b79677e65098589b1580fca7f22bb22
+	{[32]byte{0x13, 0xd8, 0xb6, 0xbf, 0x5c, 0xc7, 0x9c, 0x03,
+		0xc0, 0x7c, 0x71, 0x9c, 0x48, 0x59, 0x7b, 0xd3,
+		0x3b, 0x79, 0x67, 0x7e, 0x65, 0x09, 0x85, 0x89,
+		0xb1, 0x58, 0x0f, 0xca, 0x7f, 0x22, 0xbb, 0x22},
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123"},
+	// $ echo -n "BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234" | sha256sum
+	// 624ddef3009879c6874da2dd771d54f7330781b60e1955ceff5f9dce8bf4ea43
+	{[32]byte{0x62, 0x4d, 0xde, 0xf3, 0x00, 0x98, 0x79, 0xc6,
+		0x87, 0x4d, 0xa2, 0xdd, 0x77, 0x1d, 0x54, 0xf7,
+		0x33, 0x07, 0x81, 0xb6, 0x0e, 0x19, 0x55, 0xce,
+		0xff, 0x5f, 0x9d, 0xce, 0x8b, 0xf4, 0xea, 0x43},
+		"BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234"},
+	// $ echo -n "CDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12345" | sha256sum
+	// cc031589b70dd4b24dc6def2121835ef1aa8074ff6952cdd3f81b5099a93c58d
+	{[32]byte{0xcc, 0x03, 0x15, 0x89, 0xb7, 0x0d, 0xd4, 0xb2,
+		0x4d, 0xc6, 0xde, 0xf2, 0x12, 0x18, 0x35, 0xef,
+		0x1a, 0xa8, 0x07, 0x4f, 0xf6, 0x95, 0x2c, 0xdd,
+		0x3f, 0x81, 0xb5, 0x09, 0x9a, 0x93, 0xc5, 0x8d},
+		"CDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12345"},
+	// $ echo -n "DEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456" | sha256sum
+	// d354abb6d538402db3d73daf95537a255ebaf3a943c80205be163e044fc46a70
+	{[32]byte{0xd3, 0x54, 0xab, 0xb6, 0xd5, 0x38, 0x40, 0x2d,
+		0xb3, 0xd7, 0x3d, 0xaf, 0x95, 0x53, 0x7a, 0x25,
+		0x5e, 0xba, 0xf3, 0xa9, 0x43, 0xc8, 0x02, 0x05,
+		0xbe, 0x16, 0x3e, 0x04, 0x4f, 0xc4, 0x6a, 0x70},
+		"DEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456"},
+	// $ echo -n "EFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567" | sha256sum
+	// f78410b90a20b521afb28f41d6388482afab7265ff8884aa6290cc9f9ada30d3
+	{[32]byte{0xf7, 0x84, 0x10, 0xb9, 0x0a, 0x20, 0xb5, 0x21,
+		0xaf, 0xb2, 0x8f, 0x41, 0xd6, 0x38, 0x84, 0x82,
+		0xaf, 0xab, 0x72, 0x65, 0xff, 0x88, 0x84, 0xaa,
+		0x62, 0x90, 0xcc, 0x9f, 0x9a, 0xda, 0x30, 0xd3},
+		"EFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567"},
+	// $ echo -n "FGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12345678" | sha256sum
+	// c93a8cb7ed80166b15b79c8617410ca69e46fa1e3c1d14876699d3ce6090384f
+	{[32]byte{0xc9, 0x3a, 0x8c, 0xb7, 0xed, 0x80, 0x16, 0x6b,
+		0x15, 0xb7, 0x9c, 0x86, 0x17, 0x41, 0x0c, 0xa6,
+		0x9e, 0x46, 0xfa, 0x1e, 0x3c, 0x1d, 0x14, 0x87,
+		0x66, 0x99, 0xd3, 0xce, 0x60, 0x90, 0x38, 0x4f},
+		"FGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12345678"},
+	// $ echo -n "GHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456789" | sha256sum
+	// 6cb808e9a7fb53fa680824f08554b660d29a4afc9a101f990b4bae3a12b7fbd8
+	{[32]byte{0x6c, 0xb8, 0x08, 0xe9, 0xa7, 0xfb, 0x53, 0xfa,
+		0x68, 0x08, 0x24, 0xf0, 0x85, 0x54, 0xb6, 0x60,
+		0xd2, 0x9a, 0x4a, 0xfc, 0x9a, 0x10, 0x1f, 0x99,
+		0x0b, 0x4b, 0xae, 0x3a, 0x12, 0xb7, 0xfb, 0xd8},
+		"GHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456789"},
+	// $ echo -n "HIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890" | sha256sum
+	// 84e8dd1afa78db222860ed40b6fcfc7a269469365f81f5712fb589555bdb01fe
+	{[32]byte{0x84, 0xe8, 0xdd, 0x1a, 0xfa, 0x78, 0xdb, 0x22,
+		0x28, 0x60, 0xed, 0x40, 0xb6, 0xfc, 0xfc, 0x7a,
+		0x26, 0x94, 0x69, 0x36, 0x5f, 0x81, 0xf5, 0x71,
+		0x2f, 0xb5, 0x89, 0x55, 0x5b, 0xdb, 0x01, 0xfe},
+		"HIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890"},
+	// $ echo -n "IJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890A" | sha256sum
+	// accab8e85b6bd178e975aaaa354aed8258bcd6af3e61bd4f12267635856cab0b
+	{[32]byte{0xac, 0xca, 0xb8, 0xe8, 0x5b, 0x6b, 0xd1, 0x78,
+		0xe9, 0x75, 0xaa, 0xaa, 0x35, 0x4a, 0xed, 0x82,
+		0x58, 0xbc, 0xd6, 0xaf, 0x3e, 0x61, 0xbd, 0x4f,
+		0x12, 0x26, 0x76, 0x35, 0x85, 0x6c, 0xab, 0x0b},
+		"IJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890A"},
+	// $ echo -n "JKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890AB" | sha256sum
+	// 107f5ad8bc5d427246fc5f9c581134b61d8ba447e877df56cddad2bf53789172
+	{[32]byte{0x10, 0x7f, 0x5a, 0xd8, 0xbc, 0x5d, 0x42, 0x72,
+		0x46, 0xfc, 0x5f, 0x9c, 0x58, 0x11, 0x34, 0xb6,
+		0x1d, 0x8b, 0xa4, 0x47, 0xe8, 0x77, 0xdf, 0x56,
+		0xcd, 0xda, 0xd2, 0xbf, 0x53, 0x78, 0x91, 0x72},
+		"JKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890AB"},
+	// $ echo -n "KLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABC" | sha256sum
+	// 7666f65b234f78aa537c8d098b181091ce8b7866a0285b52e6bf31b6f21ca9bb
+	{[32]byte{0x76, 0x66, 0xf6, 0x5b, 0x23, 0x4f, 0x78, 0xaa,
+		0x53, 0x7c, 0x8d, 0x09, 0x8b, 0x18, 0x10, 0x91,
+		0xce, 0x8b, 0x78, 0x66, 0xa0, 0x28, 0x5b, 0x52,
+		0xe6, 0xbf, 0x31, 0xb6, 0xf2, 0x1c, 0xa9, 0xbb},
+		"KLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABC"},
+	// $ echo -n "LMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCD" | sha256sum
+	// 4eba948ccee7289ab1f01628a1ab756dee39a6894aed217edc9a91a8b35e50ca
+	{[32]byte{0x4e, 0xba, 0x94, 0x8c, 0xce, 0xe7, 0x28, 0x9a,
+		0xb1, 0xf0, 0x16, 0x28, 0xa1, 0xab, 0x75, 0x6d,
+		0xee, 0x39, 0xa6, 0x89, 0x4a, 0xed, 0x21, 0x7e,
+		0xdc, 0x9a, 0x91, 0xa8, 0xb3, 0x5e, 0x50, 0xca},
+		"LMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCD"},
+	// $ echo -n "MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDE" | sha256sum
+	// 5011218873e7ca84871668d26461e449e7033b7959d69cfb5c2fee773c3d432d
+	{[32]byte{0x50, 0x11, 0x21, 0x88, 0x73, 0xe7, 0xca, 0x84,
+		0x87, 0x16, 0x68, 0xd2, 0x64, 0x61, 0xe4, 0x49,
+		0xe7, 0x03, 0x3b, 0x79, 0x59, 0xd6, 0x9c, 0xfb,
+		0x5c, 0x2f, 0xee, 0x77, 0x3c, 0x3d, 0x43, 0x2d},
+		"MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDE"},
+	// $ echo -n "NOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEF" | sha256sum
+	// 6932b4ddaf3696e5d5270739bdbe6ab120bb8034b877bd3a8e5a5d5ca263e1c5
+	{[32]byte{0x69, 0x32, 0xb4, 0xdd, 0xaf, 0x36, 0x96, 0xe5,
+		0xd5, 0x27, 0x07, 0x39, 0xbd, 0xbe, 0x6a, 0xb1,
+		0x20, 0xbb, 0x80, 0x34, 0xb8, 0x77, 0xbd, 0x3a,
+		0x8e, 0x5a, 0x5d, 0x5c, 0xa2, 0x63, 0xe1, 0xc5},
+		"NOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEF"},
+	// $ echo -n "OPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFG" | sha256sum
+	// 91bb1bcbfcb4c093aab255a0b8c8b5b93605e2f51dd6b0898b70b9f3c10fc1f9
+	{[32]byte{0x91, 0xbb, 0x1b, 0xcb, 0xfc, 0xb4, 0xc0, 0x93,
+		0xaa, 0xb2, 0x55, 0xa0, 0xb8, 0xc8, 0xb5, 0xb9,
+		0x36, 0x05, 0xe2, 0xf5, 0x1d, 0xd6, 0xb0, 0x89,
+		0x8b, 0x70, 0xb9, 0xf3, 0xc1, 0x0f, 0xc1, 0xf9},
+		"OPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFG"},
+	// $ echo -n "PQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH" | sha256sum
+	// 0d1fa5355388e361c4591bd49c004e3d99044be274db43e91036611365aead02
+	{[32]byte{0x0d, 0x1f, 0xa5, 0x35, 0x53, 0x88, 0xe3, 0x61,
+		0xc4, 0x59, 0x1b, 0xd4, 0x9c, 0x00, 0x4e, 0x3d,
+		0x99, 0x04, 0x4b, 0xe2, 0x74, 0xdb, 0x43, 0xe9,
+		0x10, 0x36, 0x61, 0x13, 0x65, 0xae, 0xad, 0x02},
+		"PQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH"},
+	// $ echo -n "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" | sha256sum
+	// b6ac3cc10386331c765f04f041c147d0f278f2aed8eaa021e2d0057fc6f6ff9e
+	{[32]byte{0xb6, 0xac, 0x3c, 0xc1, 0x03, 0x86, 0x33, 0x1c,
+		0x76, 0x5f, 0x04, 0xf0, 0x41, 0xc1, 0x47, 0xd0,
+		0xf2, 0x78, 0xf2, 0xae, 0xd8, 0xea, 0xa0, 0x21,
+		0xe2, 0xd0, 0x05, 0x7f, 0xc6, 0xf6, 0xff, 0x9e},
+		strings.Repeat("A", 128)},
+	// $ echo -n "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" | sha256sum
+	// 7abaa701a6f4bb8d9ea3872a315597eb6f2ccfd03392d8d10560837f6136d06a
+	{[32]byte{0x7a, 0xba, 0xa7, 0x01, 0xa6, 0xf4, 0xbb, 0x8d,
+		0x9e, 0xa3, 0x87, 0x2a, 0x31, 0x55, 0x97, 0xeb,
+		0x6f, 0x2c, 0xcf, 0xd0, 0x33, 0x92, 0xd8, 0xd1,
+		0x05, 0x60, 0x83, 0x7f, 0x61, 0x36, 0xd0, 0x6a},
+		strings.Repeat("B", 128)},
+	// $ echo -n "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC" | sha256sum
+	// 6e8b9325f779dba60c4c148dee5ded43b19ed20d25d66e338abec53b99174fe8
+	{[32]byte{0x6e, 0x8b, 0x93, 0x25, 0xf7, 0x79, 0xdb, 0xa6,
+		0x0c, 0x4c, 0x14, 0x8d, 0xee, 0x5d, 0xed, 0x43,
+		0xb1, 0x9e, 0xd2, 0x0d, 0x25, 0xd6, 0x6e, 0x33,
+		0x8a, 0xbe, 0xc5, 0x3b, 0x99, 0x17, 0x4f, 0xe8},
+		strings.Repeat("C", 128)},
+	// $ echo -n "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD" | sha256sum
+	// 7aa020c91ac4d32e17efd9b64648b92e375987e0eae7d0a58544ca1e4fc32c3c
+	{[32]byte{0x7a, 0xa0, 0x20, 0xc9, 0x1a, 0xc4, 0xd3, 0x2e,
+		0x17, 0xef, 0xd9, 0xb6, 0x46, 0x48, 0xb9, 0x2e,
+		0x37, 0x59, 0x87, 0xe0, 0xea, 0xe7, 0xd0, 0xa5,
+		0x85, 0x44, 0xca, 0x1e, 0x4f, 0xc3, 0x2c, 0x3c},
+		strings.Repeat("D", 128)},
+	// $ echo -n "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE" | sha256sum
+	// 997f6a2fc44f1400e9f64d7eac11fe99e21f4b7a3fc2ff3ec95c2ef016abb9e5
+	{[32]byte{0x99, 0x7f, 0x6a, 0x2f, 0xc4, 0x4f, 0x14, 0x00,
+		0xe9, 0xf6, 0x4d, 0x7e, 0xac, 0x11, 0xfe, 0x99,
+		0xe2, 0x1f, 0x4b, 0x7a, 0x3f, 0xc2, 0xff, 0x3e,
+		0xc9, 0x5c, 0x2e, 0xf0, 0x16, 0xab, 0xb9, 0xe5},
+		strings.Repeat("E", 128)},
+	// $ echo -n "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" | sha256sum
+	// 5c6cdeb9ccaa1d9c57662605ab738ec4ecf0467f576d4c2d7fae48710215582a
+	{[32]byte{0x5c, 0x6c, 0xde, 0xb9, 0xcc, 0xaa, 0x1d, 0x9c,
+		0x57, 0x66, 0x26, 0x05, 0xab, 0x73, 0x8e, 0xc4,
+		0xec, 0xf0, 0x46, 0x7f, 0x57, 0x6d, 0x4c, 0x2d,
+		0x7f, 0xae, 0x48, 0x71, 0x02, 0x15, 0x58, 0x2a},
+		strings.Repeat("F", 128)},
+	// $ echo -n "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG" | sha256sum
+	// 394394b5f0e91a21d1e932f9ed55e098c8b05f3668f77134eeee843fef1d1758
+	{[32]byte{0x39, 0x43, 0x94, 0xb5, 0xf0, 0xe9, 0x1a, 0x21,
+		0xd1, 0xe9, 0x32, 0xf9, 0xed, 0x55, 0xe0, 0x98,
+		0xc8, 0xb0, 0x5f, 0x36, 0x68, 0xf7, 0x71, 0x34,
+		0xee, 0xee, 0x84, 0x3f, 0xef, 0x1d, 0x17, 0x58},
+		strings.Repeat("G", 128)},
+	// $ echo -n "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH" | sha256sum
+	// cab546612de68eaa849487342baadbac2561df6380ddac66137ef649e0cdfd0a
+	{[32]byte{0xca, 0xb5, 0x46, 0x61, 0x2d, 0xe6, 0x8e, 0xaa,
+		0x84, 0x94, 0x87, 0x34, 0x2b, 0xaa, 0xdb, 0xac,
+		0x25, 0x61, 0xdf, 0x63, 0x80, 0xdd, 0xac, 0x66,
+		0x13, 0x7e, 0xf6, 0x49, 0xe0, 0xcd, 0xfd, 0x0a},
+		strings.Repeat("H", 128)},
+	// $ echo -n "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII" | sha256sum
+	// 2be96cc28445876429be3005db465d1b9c8ed1432e3ac6f1514b6e9eee725ad8
+	{[32]byte{0x2b, 0xe9, 0x6c, 0xc2, 0x84, 0x45, 0x87, 0x64,
+		0x29, 0xbe, 0x30, 0x05, 0xdb, 0x46, 0x5d, 0x1b,
+		0x9c, 0x8e, 0xd1, 0x43, 0x2e, 0x3a, 0xc6, 0xf1,
+		0x51, 0x4b, 0x6e, 0x9e, 0xee, 0x72, 0x5a, 0xd8},
+		strings.Repeat("I", 128)},
+	// $ echo -n "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ" | sha256sum
+	// 238e5f81d54f2af58049b944c4a1b9516a36c2ef1e20887450b3482045714444
+	{[32]byte{0x23, 0x8e, 0x5f, 0x81, 0xd5, 0x4f, 0x2a, 0xf5,
+		0x80, 0x49, 0xb9, 0x44, 0xc4, 0xa1, 0xb9, 0x51,
+		0x6a, 0x36, 0xc2, 0xef, 0x1e, 0x20, 0x88, 0x74,
+		0x50, 0xb3, 0x48, 0x20, 0x45, 0x71, 0x44, 0x44},
+		strings.Repeat("J", 128)},
+	// $ echo -n "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" | sha256sum
+	// f3a5b826c64951661ce22dc67f0f79d13f633f0601aca2f5e1cf1a9f17dffd4f
+	{[32]byte{0xf3, 0xa5, 0xb8, 0x26, 0xc6, 0x49, 0x51, 0x66,
+		0x1c, 0xe2, 0x2d, 0xc6, 0x7f, 0x0f, 0x79, 0xd1,
+		0x3f, 0x63, 0x3f, 0x06, 0x01, 0xac, 0xa2, 0xf5,
+		0xe1, 0xcf, 0x1a, 0x9f, 0x17, 0xdf, 0xfd, 0x4f},
+		strings.Repeat("K", 128)},
+	// $ echo -n "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL" | sha256sum
+	// 1e90c05bedd24dc3e297d5b8fb215b95d8b7f4a040ee912069614c7a3382725d
+	{[32]byte{0x1e, 0x90, 0xc0, 0x5b, 0xed, 0xd2, 0x4d, 0xc3,
+		0xe2, 0x97, 0xd5, 0xb8, 0xfb, 0x21, 0x5b, 0x95,
+		0xd8, 0xb7, 0xf4, 0xa0, 0x40, 0xee, 0x91, 0x20,
+		0x69, 0x61, 0x4c, 0x7a, 0x33, 0x82, 0x72, 0x5d},
+		strings.Repeat("L", 128)},
+	// $ echo -n "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM" | sha256sum
+	// 96239ac6fb99822797308f18d8455778fb5885103aa5ff59afe2219df657df99
+	{[32]byte{0x96, 0x23, 0x9a, 0xc6, 0xfb, 0x99, 0x82, 0x27,
+		0x97, 0x30, 0x8f, 0x18, 0xd8, 0x45, 0x57, 0x78,
+		0xfb, 0x58, 0x85, 0x10, 0x3a, 0xa5, 0xff, 0x59,
+		0xaf, 0xe2, 0x21, 0x9d, 0xf6, 0x57, 0xdf, 0x99},
+		strings.Repeat("M", 128)},
+	// $ echo -n "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN" | sha256sum
+	// 11e7f5a6f15a4addba9b6b21bc4f8ecbdd969e179335269fc68d3a05f0f3da4a
+	{[32]byte{0x11, 0xe7, 0xf5, 0xa6, 0xf1, 0x5a, 0x4a, 0xdd,
+		0xba, 0x9b, 0x6b, 0x21, 0xbc, 0x4f, 0x8e, 0xcb,
+		0xdd, 0x96, 0x9e, 0x17, 0x93, 0x35, 0x26, 0x9f,
+		0xc6, 0x8d, 0x3a, 0x05, 0xf0, 0xf3, 0xda, 0x4a},
+		strings.Repeat("N", 128)},
+	// $ echo -n "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO" | sha256sum
+	// ae843b7e4e00afeb972bf948a345b319cca8bd0bcaa1428c1c67c88ea663c1e0
+	{[32]byte{0xae, 0x84, 0x3b, 0x7e, 0x4e, 0x00, 0xaf, 0xeb,
+		0x97, 0x2b, 0xf9, 0x48, 0xa3, 0x45, 0xb3, 0x19,
+		0xcc, 0xa8, 0xbd, 0x0b, 0xca, 0xa1, 0x42, 0x8c,
+		0x1c, 0x67, 0xc8, 0x8e, 0xa6, 0x63, 0xc1, 0xe0},
+		strings.Repeat("O", 128)},
+	// $ echo -n "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP" | sha256sum
+	// f16ef3e254ffb74b7e3c97d99486ef8c549e4c80bc6dfed7fe8c5e7e76f4fbcd
+	{[32]byte{0xf1, 0x6e, 0xf3, 0xe2, 0x54, 0xff, 0xb7, 0x4b,
+		0x7e, 0x3c, 0x97, 0xd9, 0x94, 0x86, 0xef, 0x8c,
+		0x54, 0x9e, 0x4c, 0x80, 0xbc, 0x6d, 0xfe, 0xd7,
+		0xfe, 0x8c, 0x5e, 0x7e, 0x76, 0xf4, 0xfb, 0xcd},
+		strings.Repeat("P", 128)},
 }
 
 func TestGolden(t *testing.T) {
@@ -1142,10 +1339,9 @@ func TestBlockSize(t *testing.T) {
 	}
 }
 
-var bench = New()
-var buf = make([]byte, 1024*1024)
-
 func benchmarkSize(b *testing.B, size int) {
+	var bench = New()
+	var buf = make([]byte, size)
 	b.SetBytes(int64(size))
 	sum := make([]byte, bench.Size())
 	for i := 0; i < b.N; i++ {
@@ -1155,18 +1351,388 @@ func benchmarkSize(b *testing.B, size int) {
 	}
 }
 
-func BenchmarkHash8Bytes(b *testing.B) {
-	benchmarkSize(b, 8)
+func BenchmarkHash8Bytes(b *testing.B)  { benchmarkSize(b, 8) }
+func BenchmarkHash1K(b *testing.B)      { benchmarkSize(b, 1024) }
+func BenchmarkHash8K(b *testing.B)      { benchmarkSize(b, 8192) }
+func BenchmarkHash1MAvx2(b *testing.B)  { benchmarkSize(b, 1024*1024) }
+func BenchmarkHash10MAvx2(b *testing.B) { benchmarkSize(b, 10*1024*1024) }
+
+func createInputs(size int) [16][]byte {
+	input := [16][]byte{}
+	for i := 0; i < 16; i++ {
+		input[i] = make([]byte, size)
+	}
+	return input
 }
 
-func BenchmarkHash1K(b *testing.B) {
-	benchmarkSize(b, 1024)
+func initDigests() *[512]byte {
+	digests := [512]byte{}
+	for i := 0; i < 16; i++ {
+		binary.LittleEndian.PutUint32(digests[(i+0*16)*4:], init0)
+		binary.LittleEndian.PutUint32(digests[(i+1*16)*4:], init1)
+		binary.LittleEndian.PutUint32(digests[(i+2*16)*4:], init2)
+		binary.LittleEndian.PutUint32(digests[(i+3*16)*4:], init3)
+		binary.LittleEndian.PutUint32(digests[(i+4*16)*4:], init4)
+		binary.LittleEndian.PutUint32(digests[(i+5*16)*4:], init5)
+		binary.LittleEndian.PutUint32(digests[(i+6*16)*4:], init6)
+		binary.LittleEndian.PutUint32(digests[(i+7*16)*4:], init7)
+	}
+	return &digests
 }
 
-func BenchmarkHash8K(b *testing.B) {
-	benchmarkSize(b, 8192)
+func testSha256Avx512(t *testing.T, offset, padding int) [16][]byte {
+
+	l := uint(len(golden[offset].in))
+	extraBlock := uint(0)
+	if padding == 0 {
+		extraBlock += 9
+	} else {
+		extraBlock += 64
+	}
+	input := createInputs(int(l + extraBlock))
+	for i := 0; i < 16; i++ {
+		copy(input[i], golden[offset+i].in)
+		input[i][l] = 0x80
+		copy(input[i][l+1:], bytes.Repeat([]byte{0}, padding))
+
+		// Length in bits.
+		len := uint64(l)
+		len <<= 3
+		for ii := uint(0); ii < 8; ii++ {
+			input[i][l+1+uint(padding)+ii] = byte(len >> (56 - 8*ii))
+		}
+	}
+	mask := make([]uint64, len(input[0])>>6)
+	for m := range mask {
+		mask[m] = 0xffff
+	}
+	output := blockAvx512(initDigests(), input, mask)
+	for i := 0; i < 16; i++ {
+		if bytes.Compare(output[i][:], golden[offset+i].out[:]) != 0 {
+			t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[i][:]), hex.EncodeToString(golden[offset+i].out[:]))
+		}
+	}
+	return input
 }
 
-func BenchmarkHash1M(b *testing.B) {
-	benchmarkSize(b, 1024*1024)
+func TestAvx512_1Block(t *testing.T) { testSha256Avx512(t, 31, 0) }
+func TestAvx512_3Blocks(t *testing.T) { testSha256Avx512(t, 47, 55) }
+
+func TestAvx512_MixedBlocks(t *testing.T) {
+
+	inputSingleBlock := testSha256Avx512(t, 31, 0)
+	inputMultiBlock := testSha256Avx512(t, 47, 55)
+
+	input := [16][]byte{}
+
+	for i := range input {
+		if i%2 == 0 {
+			input[i] = inputMultiBlock[i]
+		} else {
+			input[i] = inputSingleBlock[i]
+		}
+	}
+
+	mask := [3]uint64{0xffff, 0x5555, 0x5555}
+	output := blockAvx512(initDigests(), input, mask[:])
+	var offset int
+	for i := 0; i < len(output); i++ {
+		if i%2 == 0 {
+			offset = 47
+		} else {
+			offset = 31
+		}
+		if bytes.Compare(output[i][:], golden[offset+i].out[:]) != 0 {
+			t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[i][:]), hex.EncodeToString(golden[offset+i].out[:]))
+		}
+	}
+}
+
+func TestAvx512_MixedWithNilBlocks(t *testing.T) {
+
+	inputSingleBlock := testSha256Avx512(t, 31, 0)
+	inputMultiBlock := testSha256Avx512(t, 47, 55)
+
+	input := [16][]byte{}
+
+	for i := range input {
+		if i%3 == 0 {
+			input[i] = inputMultiBlock[i]
+		} else if i%3 == 1 {
+			input[i] = inputSingleBlock[i]
+		} else {
+			input[i] = nil
+		}
+	}
+
+	mask := [3]uint64{0xb6db, 0x9249, 0x9249}
+	output := blockAvx512(initDigests(), input, mask[:])
+	var offset int
+	for i := 0; i < len(output); i++ {
+		if i%3 == 2 { // for nil inputs
+			initvec := [32]byte{0x6a, 0x09, 0xe6, 0x67, 0xbb, 0x67, 0xae, 0x85,
+				0x3c, 0x6e, 0xf3, 0x72, 0xa5, 0x4f, 0xf5, 0x3a,
+				0x51, 0x0e, 0x52, 0x7f, 0x9b, 0x05, 0x68, 0x8c,
+				0x1f, 0x83, 0xd9, 0xab, 0x5b, 0xe0, 0xcd, 0x19}
+			if bytes.Compare(output[i][:], initvec[:]) != 0 {
+				t.Fatalf("Sum256 function: sha256 for nil vector = %s want %s", hex.EncodeToString(output[i][:]), hex.EncodeToString(initvec[:]))
+			}
+			continue
+		}
+		if i%3 == 0 {
+			offset = 47
+		} else {
+			offset = 31
+		}
+		if bytes.Compare(output[i][:], golden[offset+i].out[:]) != 0 {
+			t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[i][:]), hex.EncodeToString(golden[offset+i].out[:]))
+		}
+	}
+}
+
+func TestAvx512Server(t *testing.T) {
+	const offset = 31 + 16
+	server := NewAvx512Server()
+
+	// First block of 64 bytes
+	for i := 0; i < 16; i++ {
+		input := make([]byte, 64)
+		copy(input, golden[offset+i].in)
+		server.Write(uint64(Avx512ServerUid+i), input)
+	}
+
+	// Second block of 64 bytes
+	for i := 0; i < 16; i++ {
+		input := make([]byte, 64)
+		copy(input, golden[offset+i].in[64:])
+		server.Write(uint64(Avx512ServerUid+i), input)
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(16)
+
+	// Third and final block
+	for i := 0; i < 16; i++ {
+		input := make([]byte, 64)
+		input[0] = 0x80
+		copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
+
+		// Length in bits.
+		len := uint64(128)
+		len <<= 3
+		for ii := uint(0); ii < 8; ii++ {
+			input[63-8+1+ii] = byte(len >> (56 - 8*ii))
+		}
+		go func(i int, uid uint64, input []byte) {
+			output := server.Sum(uid, input)
+			fmt.Println("SUM:", hex.EncodeToString(output[:]))
+			if bytes.Compare(output[:], golden[offset+i].out[:]) != 0 {
+				t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[:]), hex.EncodeToString(golden[offset+i].out[:]))
+			}
+			wg.Done()
+		}(i, uint64(Avx512ServerUid+i), input)
+	}
+
+	wg.Wait()
+}
+
+func TestAvx512Digest(t *testing.T) {
+	server := NewAvx512Server()
+
+	const tests = 16
+	h512 := [16]hash.Hash{}
+	for i := 0; i < tests; i++ {
+		h512[i] = NewAvx512(server)
+	}
+
+	const offset = 31 + 16
+	for i := 0; i < tests; i++ {
+		input := make([]byte, 64)
+		copy(input, golden[offset+i].in)
+		h512[i].Write(input)
+	}
+	for i := 0; i < tests; i++ {
+		input := make([]byte, 64)
+		copy(input, golden[offset+i].in[64:])
+		h512[i].Write(input)
+	}
+	for i := 0; i < tests; i++ {
+		// TODO: Move final block into Sum()
+		input := make([]byte, 64)
+
+		input[0] = 0x80
+		copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
+
+		// Length in bits.
+		len := uint64(128)
+		len <<= 3
+		for ii := uint(0); ii < 8; ii++ {
+			input[63-8+1+ii] = byte(len >> (56 - 8*ii))
+		}
+		output := h512[i].Sum(input)
+		if bytes.Compare(output[:], golden[offset+i].out[:]) != 0 {
+			t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[:]), hex.EncodeToString(golden[offset+i].out[:]))
+		}
+	}
+}
+
+func benchmarkAvx512(b *testing.B) {
+	server := NewAvx512Server()
+
+	const tests = 16
+	body := make([]byte, 5*1024*1024)
+
+	b.SetBytes(int64(len(body) * 16))
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		sz9 := [16]hash.Hash{}
+		for i := 0; i < tests; i++ {
+			sz9[i] = NewAvx512(server)
+		}
+
+		for i := 0; i < tests; i++ {
+			sz9[i].Write(body)
+		}
+		for i := 0; i < tests; i++ {
+			input := make([]byte, 64)
+
+			input[0] = 0x80
+			copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
+
+			// Length in bits.
+			len := uint64(len(body))
+			len <<= 3
+			for ii := uint(0); ii < 8; ii++ {
+				input[63-8+1+ii] = byte(len >> (56 - 8*ii))
+			}
+			_ = sz9[i].Sum(input)
+		}
+	}
+}
+
+func benchmarkAvx512_Parallel(b *testing.B) {
+	server := NewAvx512Server()
+
+	const tests = 16
+	body := make([]byte, 50*1024*1024)
+
+	b.SetBytes(int64(len(body) * 16))
+	b.ResetTimer()
+
+	for runs := 0; runs < b.N; runs++ {
+
+		var wg sync.WaitGroup
+
+		wg.Add(16)
+		sz9 := [16]hash.Hash{}
+		for i := 0; i < tests; i++ {
+
+			go func(i int) {
+
+				sz9[i] = NewAvx512(server)
+				sz9[i].Write(body)
+
+				input := make([]byte, 64)
+
+				input[0] = 0x80
+				copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
+
+				// Length in bits.
+				len := uint64(len(body))
+				len <<= 3
+				for ii := uint(0); ii < 8; ii++ {
+					input[63-8+1+ii] = byte(len >> (56 - 8*ii))
+				}
+				_ = sz9[i].Sum(input)
+
+				wg.Done()
+			}(i)
+		}
+		wg.Wait()
+	}
+}
+
+func BenchmarkAvx512(b *testing.B) { benchmarkAvx512(b) }
+
+ func benchmarkHashAvx512(b *testing.B, cores int, f func(*[512]byte, [16][]byte, []uint64) [][32]byte) {
+
+ 	const size = 1 * 1024 * 1024
+ 	input := createInputs(size)
+ 	mask := make([]uint64, len(input[0])>>6)
+ 	for m := range mask {
+ 		mask[m] = 0xffff
+ 	}
+
+ 	b.SetBytes(int64(size * 16 * cores))
+ 	b.ResetTimer()
+
+ 	if cores == 1 {
+ 		for i := 0; i < b.N; i++ {
+ 			f(initDigests(), input, mask)
+ 		}
+ 	} else {
+
+ 		var wg sync.WaitGroup
+
+ 		for i := 0; i < b.N; i++ {
+ 			wg.Add(cores)
+ 			for c := 0; c < cores; c++ {
+ 				go func() { f(initDigests(), input, mask); wg.Done() }()
+ 			}
+ 			wg.Wait()
+ 		}
+ 	}
+ }
+
+func BenchmarkHash1MAvx512(b *testing.B)       { benchmarkHashAvx512(b, 1, blockAvx512) }
+func BenchmarkHash1MAvx512_2Core(b *testing.B) { benchmarkHashAvx512(b, 2, blockAvx512) }
+func BenchmarkHash1MAvx512_4Core(b *testing.B) { benchmarkHashAvx512(b, 4, blockAvx512) }
+
+type maskTest struct {
+	in  [16]int
+	out [16]maskRounds
+}
+
+var goldenMask = []maskTest{
+	{[16]int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, [16]maskRounds{}},
+	{[16]int{64, 0, 64, 0, 64, 0, 64, 0, 64, 0, 64, 0, 64, 0, 64, 0}, [16]maskRounds{{0x5555, 1}}},
+	{[16]int{0, 64, 0, 64, 0, 64, 0, 64, 0, 64, 0, 64, 0, 64, 0, 64}, [16]maskRounds{{0xaaaa, 1}}},
+	{[16]int{64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64}, [16]maskRounds{{0xffff, 1}}},
+	{[16]int{128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128}, [16]maskRounds{{0xffff, 2}}},
+	{[16]int{64, 128, 64, 128, 64, 128, 64, 128, 64, 128, 64, 128, 64, 128, 64, 128}, [16]maskRounds{{0xffff, 1}, {0xaaaa, 1}}},
+	{[16]int{128, 64, 128, 64, 128, 64, 128, 64, 128, 64, 128, 64, 128, 64, 128, 64}, [16]maskRounds{{0xffff, 1}, {0x5555, 1}}},
+	{[16]int{64, 192, 64, 192, 64, 192, 64, 192, 64, 192, 64, 192, 64, 192, 64, 192}, [16]maskRounds{{0xffff, 1}, {0xaaaa, 2}}},
+	//
+	//  >= 64   0110=6          1011=b          1101=d           0110=6
+	//  >=128   0100=4          0010=2          1001=9           0100=4
+	{[16]int{0, 64, 128, 0, 64, 128, 0, 64, 128, 0, 64, 128, 0, 64, 128, 0}, [16]maskRounds{{0x6db6, 1}, {0x4924, 1}}},
+	{[16]int{1 * 64, 2 * 64, 3 * 64, 4 * 64, 5 * 64, 6 * 64, 7 * 64, 8 * 64, 9 * 64, 10 * 64, 11 * 64, 12 * 64, 13 * 64, 14 * 64, 15 * 64, 16 * 64},
+		[16]maskRounds{{0xffff, 1}, {0xfffe, 1}, {0xfffc, 1}, {0xfff8, 1}, {0xfff0, 1}, {0xffe0, 1}, {0xffc0, 1}, {0xff80, 1},
+			{0xff00, 1}, {0xfe00, 1}, {0xfc00, 1}, {0xf800, 1}, {0xf000, 1}, {0xe000, 1}, {0xc000, 1}, {0x8000, 1}}},
+	{[16]int{2 * 64, 1 * 64, 3 * 64, 4 * 64, 5 * 64, 6 * 64, 7 * 64, 8 * 64, 9 * 64, 10 * 64, 11 * 64, 12 * 64, 13 * 64, 14 * 64, 15 * 64, 16 * 64},
+		[16]maskRounds{{0xffff, 1}, {0xfffd, 1}, {0xfffc, 1}, {0xfff8, 1}, {0xfff0, 1}, {0xffe0, 1}, {0xffc0, 1}, {0xff80, 1},
+			{0xff00, 1}, {0xfe00, 1}, {0xfc00, 1}, {0xf800, 1}, {0xf000, 1}, {0xe000, 1}, {0xc000, 1}, {0x8000, 1}}},
+	{[16]int{10 * 64, 20 * 64, 30 * 64, 40 * 64, 50 * 64, 60 * 64, 70 * 64, 80 * 64, 90 * 64, 100 * 64, 110 * 64, 120 * 64, 130 * 64, 140 * 64, 150 * 64, 160 * 64},
+		[16]maskRounds{{0xffff, 10}, {0xfffe, 10}, {0xfffc, 10}, {0xfff8, 10}, {0xfff0, 10}, {0xffe0, 10}, {0xffc0, 10}, {0xff80, 10},
+			{0xff00, 10}, {0xfe00, 10}, {0xfc00, 10}, {0xf800, 10}, {0xf000, 10}, {0xe000, 10}, {0xc000, 10}, {0x8000, 10}}},
+	{[16]int{10 * 64, 19 * 64, 27 * 64, 34 * 64, 40 * 64, 45 * 64, 49 * 64, 52 * 64, 54 * 64, 55 * 64, 57 * 64, 60 * 64, 64 * 64, 69 * 64, 75 * 64, 82 * 64},
+		[16]maskRounds{{0xffff, 10}, {0xfffe, 9}, {0xfffc, 8}, {0xfff8, 7}, {0xfff0, 6}, {0xffe0, 5}, {0xffc0, 4}, {0xff80, 3},
+			{0xff00, 2}, {0xfe00, 1}, {0xfc00, 2}, {0xf800, 3}, {0xf000, 4}, {0xe000, 5}, {0xc000, 6}, {0x8000, 7}}},
+}
+
+func TestMaskGen(t *testing.T) {
+	input := [16][]byte{}
+	for gcase, g := range goldenMask {
+		for i, l := range g.in {
+			buf := make([]byte, l)
+			input[i] = buf[:]
+		}
+
+		mr := genMask(input)
+
+		if !reflect.DeepEqual(mr, g.out) {
+			t.Fatalf("case %d: got %04x\n                    want %04x", gcase, mr, g.out)
+		}
+	}
 }
