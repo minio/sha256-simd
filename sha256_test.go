@@ -51,6 +51,7 @@ package sha256
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"hash"
@@ -58,7 +59,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"encoding/binary"
 )
 
 type sha256Test struct {
@@ -1355,6 +1355,7 @@ func BenchmarkHash8Bytes(b *testing.B)  { benchmarkSize(b, 8) }
 func BenchmarkHash1K(b *testing.B)      { benchmarkSize(b, 1024) }
 func BenchmarkHash8K(b *testing.B)      { benchmarkSize(b, 8192) }
 func BenchmarkHash1MAvx2(b *testing.B)  { benchmarkSize(b, 1024*1024) }
+func BenchmarkHash5MAvx2(b *testing.B)  { benchmarkSize(b, 5*1024*1024) }
 func BenchmarkHash10MAvx2(b *testing.B) { benchmarkSize(b, 10*1024*1024) }
 
 func createInputs(size int) [16][]byte {
@@ -1415,7 +1416,7 @@ func testSha256Avx512(t *testing.T, offset, padding int) [16][]byte {
 	return input
 }
 
-func TestAvx512_1Block(t *testing.T) { testSha256Avx512(t, 31, 0) }
+func TestAvx512_1Block(t *testing.T)  { testSha256Avx512(t, 31, 0) }
 func TestAvx512_3Blocks(t *testing.T) { testSha256Avx512(t, 47, 55) }
 
 func TestAvx512_MixedBlocks(t *testing.T) {
@@ -1576,118 +1577,85 @@ func TestAvx512Digest(t *testing.T) {
 	}
 }
 
-func benchmarkAvx512(b *testing.B) {
-	server := NewAvx512Server()
+func benchmarkAvx512SingleCore(h512 []hash.Hash, body []byte) {
 
-	const tests = 16
-	body := make([]byte, 5*1024*1024)
+	for i := 0; i < len(h512); i++ {
+		h512[i].Write(body)
+	}
+	for i := 0; i < len(h512); i++ {
+		// TODO: Move final block into Sum()
+		input := make([]byte, 64)
 
-	b.SetBytes(int64(len(body) * 16))
-	b.ResetTimer()
+		input[0] = 0x80
+		copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
 
-	for i := 0; i < b.N; i++ {
-		sz9 := [16]hash.Hash{}
-		for i := 0; i < tests; i++ {
-			sz9[i] = NewAvx512(server)
+		// Length in bits.
+		len := uint64(len(body))
+		len <<= 3
+		for ii := uint(0); ii < 8; ii++ {
+			input[63-8+1+ii] = byte(len >> (56 - 8*ii))
 		}
-
-		for i := 0; i < tests; i++ {
-			sz9[i].Write(body)
-		}
-		for i := 0; i < tests; i++ {
-			input := make([]byte, 64)
-
-			input[0] = 0x80
-			copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
-
-			// Length in bits.
-			len := uint64(len(body))
-			len <<= 3
-			for ii := uint(0); ii < 8; ii++ {
-				input[63-8+1+ii] = byte(len >> (56 - 8*ii))
-			}
-			_ = sz9[i].Sum(input)
-		}
+		_ = h512[i].Sum(input)
 	}
 }
 
-func benchmarkAvx512_Parallel(b *testing.B) {
+func benchmarkAvx512(b *testing.B, size int) {
 	server := NewAvx512Server()
 
 	const tests = 16
-	body := make([]byte, 50*1024*1024)
+	body := make([]byte, size)
 
-	b.SetBytes(int64(len(body) * 16))
+	b.SetBytes(int64(len(body) * tests))
 	b.ResetTimer()
 
-	for runs := 0; runs < b.N; runs++ {
-
-		var wg sync.WaitGroup
-
-		wg.Add(16)
-		sz9 := [16]hash.Hash{}
+	for i := 0; i < b.N; i++ {
+		h512 := make([]hash.Hash, tests)
 		for i := 0; i < tests; i++ {
+			h512[i] = NewAvx512(server)
+		}
 
-			go func(i int) {
+		benchmarkAvx512SingleCore(h512, body)
+	}
+}
 
-				sz9[i] = NewAvx512(server)
-				sz9[i].Write(body)
+func BenchmarkAvx512_05M(b *testing.B) { benchmarkAvx512(b, 512*1024) }
+func BenchmarkAvx512_1M(b *testing.B)  { benchmarkAvx512(b, 1*1024*1024) }
+func BenchmarkAvx512_5M(b *testing.B)  { benchmarkAvx512(b, 5*1024*1024) }
+func BenchmarkAvx512_10M(b *testing.B) { benchmarkAvx512(b, 10*1024*1024) }
 
-				input := make([]byte, 64)
+func benchmarkAvx512MultiCore(b *testing.B, size, cores int) {
 
-				input[0] = 0x80
-				copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
+	servers := make([]*Avx512Server, cores)
+	for c := 0; c < cores; c++ {
+		servers[c] = NewAvx512Server()
+	}
 
-				// Length in bits.
-				len := uint64(len(body))
-				len <<= 3
-				for ii := uint(0); ii < 8; ii++ {
-					input[63-8+1+ii] = byte(len >> (56 - 8*ii))
-				}
-				_ = sz9[i].Sum(input)
+	const tests = 16
 
-				wg.Done()
-			}(i)
+	body := make([]byte, size)
+
+	h512 := make([]hash.Hash, tests*cores)
+	for i := 0; i < tests*cores; i++ {
+		h512[i] = NewAvx512(servers[i>>4])
+	}
+
+	b.SetBytes(int64(size * 16 * cores))
+	b.ResetTimer()
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < b.N; i++ {
+		wg.Add(cores)
+		for c := 0; c < cores; c++ {
+			go func(c int) { benchmarkAvx512SingleCore(h512[c*tests:(c+1)*tests], body); wg.Done() }(c)
 		}
 		wg.Wait()
 	}
 }
 
-func BenchmarkAvx512(b *testing.B) { benchmarkAvx512(b) }
-
- func benchmarkHashAvx512(b *testing.B, cores int, f func(*[512]byte, [16][]byte, []uint64) [][32]byte) {
-
- 	const size = 1 * 1024 * 1024
- 	input := createInputs(size)
- 	mask := make([]uint64, len(input[0])>>6)
- 	for m := range mask {
- 		mask[m] = 0xffff
- 	}
-
- 	b.SetBytes(int64(size * 16 * cores))
- 	b.ResetTimer()
-
- 	if cores == 1 {
- 		for i := 0; i < b.N; i++ {
- 			f(initDigests(), input, mask)
- 		}
- 	} else {
-
- 		var wg sync.WaitGroup
-
- 		for i := 0; i < b.N; i++ {
- 			wg.Add(cores)
- 			for c := 0; c < cores; c++ {
- 				go func() { f(initDigests(), input, mask); wg.Done() }()
- 			}
- 			wg.Wait()
- 		}
- 	}
- }
-
-func BenchmarkHash1MAvx512(b *testing.B)       { benchmarkHashAvx512(b, 1, blockAvx512) }
-func BenchmarkHash1MAvx512_2Core(b *testing.B) { benchmarkHashAvx512(b, 2, blockAvx512) }
-func BenchmarkHash1MAvx512_4Core(b *testing.B) { benchmarkHashAvx512(b, 4, blockAvx512) }
+func BenchmarkAvx512_5M_2Cores(b *testing.B) { benchmarkAvx512MultiCore(b, 5*1024*1024, 2) }
+func BenchmarkAvx512_5M_4Cores(b *testing.B) { benchmarkAvx512MultiCore(b, 5*1024*1024, 4) }
+func BenchmarkAvx512_5M_6Cores(b *testing.B) { benchmarkAvx512MultiCore(b, 5*1024*1024, 6) }
 
 type maskTest struct {
 	in  [16]int
