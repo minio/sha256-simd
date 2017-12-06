@@ -1325,6 +1325,27 @@ func TestGolden(t *testing.T) {
 	}
 }
 
+func TestGoldenAVX512(t *testing.T) {
+
+	if !avx512 {
+		t.SkipNow()
+		return
+	}
+
+	server := NewAvx512Server()
+	h512 := NewAvx512(server)
+
+	for _, g := range golden {
+		h512.Reset()
+		h512.Write([]byte(g.in))
+		digest := h512.Sum([]byte{})
+		s := fmt.Sprintf("%x", digest)
+		if !reflect.DeepEqual(digest, g.out[:]) {
+			t.Fatalf("Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
+		}
+	}
+}
+
 func TestSize(t *testing.T) {
 	c := New()
 	if got := c.Size(); got != Size {

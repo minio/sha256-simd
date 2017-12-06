@@ -29,6 +29,8 @@ import (
 //go:noescape
 func sha256_x16_avx512(digests *[512]byte, scratch *[512]byte, mask []uint64, inputs [16][]byte)
 
+// Do not start at 0 but next multiple of 16 so as to be able to
+// differentiate with default initialiation value of 0
 const Avx512ServerUid = 16
 
 var uidCounter uint64
@@ -42,41 +44,84 @@ func NewAvx512(a512srv *Avx512Server) hash.Hash {
 type Avx512Digest struct {
 	uid     uint64
 	a512srv *Avx512Server
+	x       [chunk]byte
+	nx      int
+	len     uint64
 }
 
 // Return size of checksum
-func (digest *Avx512Digest) Size() int { return Size }
+func (d *Avx512Digest) Size() int { return Size }
 
 // Return blocksize of checksum
-func (digest Avx512Digest) BlockSize() int { return BlockSize }
+func (d Avx512Digest) BlockSize() int { return BlockSize }
 
-func (digest *Avx512Digest) Reset() {
-	// TODO: Implement Reset()
+func (d *Avx512Digest) Reset() {
+	d.a512srv.blocksCh <- blockInput{uid: d.uid, reset: true}
+	d.nx = 0
+	d.len = 0
 }
 
 // Write to digest
-func (digest *Avx512Digest) Write(p []byte) (n int, err error) {
-	digest.a512srv.blocksCh <- blockInput{uid: digest.uid, msg: p}
-	n = len(p)
+func (d *Avx512Digest) Write(p []byte) (nn int, err error) {
+	nn = len(p)
+	d.len += uint64(nn)
+	if d.nx > 0 {
+		n := copy(d.x[d.nx:], p)
+		d.nx += n
+		if d.nx == chunk {
+			d.a512srv.blocksCh <- blockInput{uid: d.uid, msg: d.x[:]}
+			d.nx = 0
+		}
+		p = p[n:]
+	}
+	if len(p) >= chunk {
+		n := len(p) &^ (chunk - 1)
+		d.a512srv.blocksCh <- blockInput{uid: d.uid, msg: p[:n]}
+		p = p[n:]
+	}
+	if len(p) > 0 {
+		d.nx = copy(d.x[:], p)
+	}
 	return
 }
 
 // Return sha256 sum in bytes
-func (digest *Avx512Digest) Sum(in []byte) (result []byte) {
-	sumCh := make(chan [32]byte)
-	digest.a512srv.blocksCh <- blockInput{uid: digest.uid, msg: in, final: true, sumCh: sumCh}
+func (d *Avx512Digest) Sum(in []byte) (result []byte) {
+	final := make([]byte, 0, 128)
+
+	len := d.len
+	// Padding.  Add a 1 bit and 0 bits until 56 bytes mod 64.
+	var tmp [64]byte
+	tmp[0] = 0x80
+	if len%64 < 56 {
+		final = append(d.x[d.nx:], tmp[0 : 56-len%64]...)
+	} else {
+		final = append(d.x[d.nx:], tmp[0 : 64+56-len%64]...)
+	}
+	d.nx = 0
+
+	// Length in bits.
+	len <<= 3
+	for i := uint(0); i < 8; i++ {
+		tmp[i] = byte(len >> (56 - 8*i))
+	}
+	final = append(final, tmp[0:8]...)
+
+	sumCh := make(chan [Size]byte)
+	d.a512srv.blocksCh <- blockInput{uid: d.uid, msg: final, final: true, sumCh: sumCh}
 	output := <-sumCh
-	return output[:]
+	// TODO: Cache output result until we have reset
+	return append(in, output[:]...)
 }
 
 // Interface function to assembly ode
-func blockAvx512(digests *[512]byte, input [16][]byte, mask []uint64) [][32]byte {
+func blockAvx512(digests *[512]byte, input [16][]byte, mask []uint64) [][Size]byte {
 
 	scratch := [512]byte{}
 	sha256_x16_avx512(digests, &scratch, mask, input)
 
 	// TODO: See if we can use statically size array
-	output := make([][32]byte, 16)
+	output := make([][Size]byte, 16)
 	for i := 0; i < 16; i++ {
 		output[i] = getDigest(i, digests[:])
 	}
@@ -84,9 +129,9 @@ func blockAvx512(digests *[512]byte, input [16][]byte, mask []uint64) [][32]byte
 	return output
 }
 
-func getDigest(index int, state []byte) (sum [32]byte) {
+func getDigest(index int, state []byte) (sum [Size]byte) {
 	for j := 0; j < 16; j += 2 {
-		for i := index*4 + j*32; i < index*4+(j+1)*32; i += 32 {
+		for i := index*4 + j*Size; i < index*4+(j+1)*Size; i += Size {
 			// TODO: See if we can prevent byte swapping
 			binary.BigEndian.PutUint32(sum[j*2:], binary.LittleEndian.Uint32(state[i:i+4]))
 		}
@@ -94,27 +139,34 @@ func getDigest(index int, state []byte) (sum [32]byte) {
 	return
 }
 
-// Type to implement 16x parallel handling of SHA256 invocations
-type Avx512Server struct {
-	inputs   [16][]byte
-	totalIn  int
-	inputUid [16]uint64
-	digests  map[uint64][32]byte
-	blocksCh chan blockInput
-	outputCh [16]chan [32]byte
-}
-
-// Message to send across channel
+// Message to send across input channel
 type blockInput struct {
 	uid   uint64
 	msg   []byte
+	reset bool
 	final bool
-	sumCh chan [32]byte
+	sumCh chan [Size]byte
 }
 
+// Type to implement 16x parallel handling of SHA256 invocations
+type Avx512Server struct {
+	blocksCh chan blockInput       // Input channel
+	totalIn  int                   // Total number of inputs waiting to be processed
+	lanes    [16]Avx512LaneInfo    // Array with info per lane (out of 16)
+	digests  map[uint64][Size]byte // Map of uids to (interim) digest results
+}
+
+// Info for each lane
+type Avx512LaneInfo struct {
+	uid      uint64          // unique identification for this SHA processing
+	block    []byte          // input block to be processed
+	outputCh chan [Size]byte // channel for output result
+}
+
+// Create new object for parallel processing handling
 func NewAvx512Server() *Avx512Server {
 	a512srv := &Avx512Server{}
-	a512srv.digests = make(map[uint64][32]byte)
+	a512srv.digests = make(map[uint64][Size]byte)
 	a512srv.blocksCh = make(chan blockInput)
 
 	// Start a single thread for reading from the input channel
@@ -127,26 +179,31 @@ func (a512srv *Avx512Server) Process() {
 	for {
 		select {
 		case block := <-a512srv.blocksCh:
+			if block.reset {
+				a512srv.reset(block.uid)
+				continue
+			}
 			index := block.uid & 0xf
 			// fmt.Println("Adding message:", block.uid, index)
 
-			if a512srv.inputs[index] != nil { // If slot is already filled, process all inputs
+			if a512srv.lanes[index].block != nil { // If slot is already filled, process all inputs
 				//fmt.Println("Invoking Blocks()")
 				a512srv.blocks()
 			}
 			a512srv.totalIn++
-			a512srv.inputUid[index] = block.uid
-			a512srv.inputs[index] = block.msg
+			a512srv.lanes[index] = Avx512LaneInfo{uid: block.uid, block: block.msg}
 			if block.final {
-				a512srv.outputCh[index] = block.sumCh
+				a512srv.lanes[index].outputCh = block.sumCh
 			}
-			if a512srv.totalIn == len(a512srv.inputs) {
+			if a512srv.totalIn == len(a512srv.lanes) {
 				// fmt.Println("Invoking Blocks() while FULL: ")
 				a512srv.blocks()
 			}
+
+			// TODO: test with larger timeout
 		case <-time.After(1 * time.Microsecond):
-			for _, input := range a512srv.inputs {
-				if input != nil { // check if there is any input to process
+			for _, lane := range a512srv.lanes {
+				if lane.block != nil { // check if there is any input to process
 					// fmt.Println("Invoking Blocks() on TIMEOUT: ")
 					a512srv.blocks()
 					break // we are done
@@ -156,22 +213,44 @@ func (a512srv *Avx512Server) Process() {
 	}
 }
 
+// Do a reset for this calculation
+func (a512srv *Avx512Server) reset(uid uint64) {
+
+	// Check if there is a message still waiting to be processed (and remove if so)
+	for i, lane := range a512srv.lanes {
+		if lane.uid == uid {
+			if lane.block != nil {
+				a512srv.lanes[i] = Avx512LaneInfo{} // clear message
+				a512srv.totalIn -= 1
+			}
+		}
+	}
+
+	// Delete entry from hash map
+	delete(a512srv.digests, uid)
+}
+
 // Invoke assembly and send results back
 func (a512srv *Avx512Server) blocks() (err error) {
 
-	mask := expandMask(genMask(a512srv.inputs))
-	outputs := blockAvx512(a512srv.getDigests(), a512srv.inputs, mask)
-	//fmt.Println(hex.EncodeToString(outputs[0][:]))
-	a512srv.totalIn = 0
-	for i := 0; i < 16; i++ {
-		a512srv.digests[a512srv.inputUid[i]] = outputs[i]
-		a512srv.inputs[i] = nil
+	inputs := [16][]byte{}
+	for i := range inputs {
+		inputs[i] = a512srv.lanes[i].block
+	}
 
-		if a512srv.outputCh[i] != nil {
+	mask := expandMask(genMask(inputs))
+	outputs := blockAvx512(a512srv.getDigests(), inputs, mask)
+
+	a512srv.totalIn = 0
+	for i := 0; i < len(outputs); i++ {
+		uid, outputCh := a512srv.lanes[i].uid, a512srv.lanes[i].outputCh
+		a512srv.digests[uid] = outputs[i]
+		a512srv.lanes[i] = Avx512LaneInfo{}
+
+		if outputCh != nil {
 			// Send back result
-			a512srv.outputCh[i] <- outputs[i]
-			a512srv.outputCh[i] = nil
-			// TODO: Remove entry from hashmap
+			outputCh <- outputs[i]
+			delete(a512srv.digests, uid) // Delete entry from hashmap
 		}
 	}
 	return
@@ -190,8 +269,8 @@ func (a512srv *Avx512Server) Sum(uid uint64, p []byte) [32]byte {
 
 func (a512srv *Avx512Server) getDigests() *[512]byte {
 	digests := [512]byte{}
-	for i := 0; i < 16; i++ {
-		a, ok := a512srv.digests[a512srv.inputUid[i]]
+	for i, lane := range a512srv.lanes {
+		a, ok := a512srv.digests[lane.uid]
 		if ok {
 			// TODO: See if we can prevent byte swap
 			binary.BigEndian.PutUint32(digests[(i+0*16)*4:], binary.LittleEndian.Uint32(a[0:4]))
