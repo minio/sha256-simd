@@ -94,9 +94,9 @@ func (d *Avx512Digest) Sum(in []byte) (result []byte) {
 	var tmp [64]byte
 	tmp[0] = 0x80
 	if len%64 < 56 {
-		final = append(d.x[d.nx:], tmp[0 : 56-len%64]...)
+		final = append(d.x[:d.nx], tmp[0 : 56-len%64]...)
 	} else {
-		final = append(d.x[d.nx:], tmp[0 : 64+56-len%64]...)
+		final = append(d.x[:d.nx], tmp[0 : 64+56-len%64]...)
 	}
 	d.nx = 0
 

@@ -1568,7 +1568,6 @@ func TestAvx512Server(t *testing.T) {
 		}
 		go func(i int, uid uint64, input []byte) {
 			output := server.Sum(uid, input)
-			fmt.Println("SUM:", hex.EncodeToString(output[:]))
 			if bytes.Compare(output[:], golden[offset+i].out[:]) != 0 {
 				t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[:]), hex.EncodeToString(golden[offset+i].out[:]))
 			}
@@ -1606,19 +1605,7 @@ func TestAvx512Digest(t *testing.T) {
 		h512[i].Write(input)
 	}
 	for i := 0; i < tests; i++ {
-		// TODO: Move final block into Sum()
-		input := make([]byte, 64)
-
-		input[0] = 0x80
-		copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
-
-		// Length in bits.
-		len := uint64(128)
-		len <<= 3
-		for ii := uint(0); ii < 8; ii++ {
-			input[63-8+1+ii] = byte(len >> (56 - 8*ii))
-		}
-		output := h512[i].Sum(input)
+		output := h512[i].Sum([]byte{})
 		if bytes.Compare(output[:], golden[offset+i].out[:]) != 0 {
 			t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[:]), hex.EncodeToString(golden[offset+i].out[:]))
 		}
@@ -1631,19 +1618,7 @@ func benchmarkAvx512SingleCore(h512 []hash.Hash, body []byte) {
 		h512[i].Write(body)
 	}
 	for i := 0; i < len(h512); i++ {
-		// TODO: Move final block into Sum()
-		input := make([]byte, 64)
-
-		input[0] = 0x80
-		copy(input[1:], bytes.Repeat([]byte{0}, 63-8))
-
-		// Length in bits.
-		len := uint64(len(body))
-		len <<= 3
-		for ii := uint(0); ii < 8; ii++ {
-			input[63-8+1+ii] = byte(len >> (56 - 8*ii))
-		}
-		_ = h512[i].Sum(input)
+		_ = h512[i].Sum([]byte{})
 	}
 }
 
