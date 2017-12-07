@@ -24,6 +24,7 @@ import (
 	"sort"
 	"sync/atomic"
 	"time"
+	"errors"
 )
 
 //go:noescape
@@ -47,6 +48,8 @@ type Avx512Digest struct {
 	x       [chunk]byte
 	nx      int
 	len     uint64
+	final	bool
+	result  [Size]byte
 }
 
 // Return size of checksum
@@ -59,10 +62,16 @@ func (d *Avx512Digest) Reset() {
 	d.a512srv.blocksCh <- blockInput{uid: d.uid, reset: true}
 	d.nx = 0
 	d.len = 0
+	d.final = false
 }
 
 // Write to digest
 func (d *Avx512Digest) Write(p []byte) (nn int, err error) {
+
+	if d.final {
+		return 0, errors.New("Avx512Digest already finalized. Reset first before writing again.")
+	}
+
 	nn = len(p)
 	d.len += uint64(nn)
 	if d.nx > 0 {
@@ -87,16 +96,21 @@ func (d *Avx512Digest) Write(p []byte) (nn int, err error) {
 
 // Return sha256 sum in bytes
 func (d *Avx512Digest) Sum(in []byte) (result []byte) {
-	final := make([]byte, 0, 128)
+
+	if d.final {
+		return append(in, d.result[:]...)
+	}
+
+	trail := make([]byte, 0, 128)
 
 	len := d.len
 	// Padding.  Add a 1 bit and 0 bits until 56 bytes mod 64.
 	var tmp [64]byte
 	tmp[0] = 0x80
 	if len%64 < 56 {
-		final = append(d.x[:d.nx], tmp[0 : 56-len%64]...)
+		trail = append(d.x[:d.nx], tmp[0 : 56-len%64]...)
 	} else {
-		final = append(d.x[:d.nx], tmp[0 : 64+56-len%64]...)
+		trail = append(d.x[:d.nx], tmp[0 : 64+56-len%64]...)
 	}
 	d.nx = 0
 
@@ -105,23 +119,22 @@ func (d *Avx512Digest) Sum(in []byte) (result []byte) {
 	for i := uint(0); i < 8; i++ {
 		tmp[i] = byte(len >> (56 - 8*i))
 	}
-	final = append(final, tmp[0:8]...)
+	trail = append(trail, tmp[0:8]...)
 
 	sumCh := make(chan [Size]byte)
-	d.a512srv.blocksCh <- blockInput{uid: d.uid, msg: final, final: true, sumCh: sumCh}
-	output := <-sumCh
-	// TODO: Cache output result until we have reset
-	return append(in, output[:]...)
+	d.a512srv.blocksCh <- blockInput{uid: d.uid, msg: trail, final: true, sumCh: sumCh}
+	d.result = <-sumCh
+	d.final = true
+	return append(in, d.result[:]...)
 }
 
 // Interface function to assembly ode
-func blockAvx512(digests *[512]byte, input [16][]byte, mask []uint64) [][Size]byte {
+func blockAvx512(digests *[512]byte, input [16][]byte, mask []uint64) [16][Size]byte {
 
 	scratch := [512]byte{}
 	sha256_x16_avx512(digests, &scratch, mask, input)
 
-	// TODO: See if we can use statically size array
-	output := make([][Size]byte, 16)
+	output := [16][Size]byte{}
 	for i := 0; i < 16; i++ {
 		output[i] = getDigest(i, digests[:])
 	}
@@ -132,7 +145,6 @@ func blockAvx512(digests *[512]byte, input [16][]byte, mask []uint64) [][Size]by
 func getDigest(index int, state []byte) (sum [Size]byte) {
 	for j := 0; j < 16; j += 2 {
 		for i := index*4 + j*Size; i < index*4+(j+1)*Size; i += Size {
-			// TODO: See if we can prevent byte swapping
 			binary.BigEndian.PutUint32(sum[j*2:], binary.LittleEndian.Uint32(state[i:i+4]))
 		}
 	}
@@ -272,7 +284,6 @@ func (a512srv *Avx512Server) getDigests() *[512]byte {
 	for i, lane := range a512srv.lanes {
 		a, ok := a512srv.digests[lane.uid]
 		if ok {
-			// TODO: See if we can prevent byte swap
 			binary.BigEndian.PutUint32(digests[(i+0*16)*4:], binary.LittleEndian.Uint32(a[0:4]))
 			binary.BigEndian.PutUint32(digests[(i+1*16)*4:], binary.LittleEndian.Uint32(a[4:8]))
 			binary.BigEndian.PutUint32(digests[(i+2*16)*4:], binary.LittleEndian.Uint32(a[8:12]))
