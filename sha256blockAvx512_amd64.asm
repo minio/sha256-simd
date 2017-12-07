@@ -303,17 +303,6 @@
                                        \
     vmovdqu32   TMP3, [TBL + ((_ROUND+1)*64)] \ // Next Kt
 
-// TODO: Aligned load above
-
-// This is supposed to be SKL optimized assuming:
-// vpternlog, vpaddd ports 5,8
-// vprord ports 1,8
-// However, vprord is only working on port 8
-//
-// Main processing loop per round
-// Get the msg schedule word 16 from the current, now unneccessary word
-#define PROCESS_LOOP_00_47
-
 
 #define MSG_SCHED_ROUND_16_63(_WT, _WTp1, _WTp9, _WTp14) \
     vprord      TMP4, _WTp14, 17                         \ // ROR_17(Wt-2)
@@ -370,10 +359,6 @@ TEXT ·sha256_x16_avx512(SB), 7, $0
 
     LEAQ TABLE<>(SB), TBL_P9
 
-    // TODO: Fix comment
-    // Do we need to transpose digests???
-    // SHA1 does not, but SHA256 has been
-
     xor IDX, IDX
 
     // Read in first block of input data
@@ -398,9 +383,8 @@ lloop:
     LEAQ PSHUFFLE_BYTE_FLIP_MASK<>(SB), TBL_P9
     vmovdqu32 TMP2, [TBL]
 
-    // First K
+    // Get first K from table
     LEAQ TABLE<>(SB), TBL_P9
-    // TODO: load aligned
     vmovdqu32	TMP3, [TBL]
 
     // Save digests for later addition
@@ -655,7 +639,6 @@ lastLoop:
     vpaddd H{k1}, H, TMP2
 
     // Write out digest
-    // Do we need to untranspose digests???
     vmovdqu32 [STATE + 0*SHA256_DIGEST_ROW_SIZE], A
     vmovdqu32 [STATE + 1*SHA256_DIGEST_ROW_SIZE], B
     vmovdqu32 [STATE + 2*SHA256_DIGEST_ROW_SIZE], C
