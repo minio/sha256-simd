@@ -28,7 +28,7 @@ import (
 )
 
 //go:noescape
-func sha256_x16_avx512(digests *[512]byte, scratch *[512]byte, table *[4096]uint64, mask []uint64, inputs [16][]byte)
+func sha256_x16_avx512(digests *[512]byte, scratch *[512]byte, table *[512]uint64, mask []uint64, inputs [16][]byte)
 
 // Do not start at 0 but next multiple of 16 so as to be able to
 // differentiate with default initialiation value of 0
@@ -128,7 +128,7 @@ func (d *Avx512Digest) Sum(in []byte) (result []byte) {
 	return append(in, d.result[:]...)
 }
 
-var table = [4096]uint64{
+var table = [512]uint64{
 	0x428a2f98428a2f98, 0x428a2f98428a2f98, 0x428a2f98428a2f98, 0x428a2f98428a2f98,
 	0x428a2f98428a2f98, 0x428a2f98428a2f98, 0x428a2f98428a2f98, 0x428a2f98428a2f98,
 	0x7137449171374491, 0x7137449171374491, 0x7137449171374491, 0x7137449171374491,
