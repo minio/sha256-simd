@@ -1,32 +1,53 @@
 # sha256-simd
 
-Accelerate SHA256 computations in pure Go for both Intel (AVX2, AVX, SSE) as well as ARM (arm64) platforms.
-
-Update: As of Go 1.8, `crypto/sha256` offers similar performance for AVX2.
+Accelerate SHA256 computations in pure Go using AVX512 and AVX2 for Intel and ARM64 for ARM. On AVX512 it provides an up to 8x improvement (over 3 GB/s per core) in comparison to AVX2.
 
 ## Introduction
 
-This package is designed as a drop-in replacement for `crypto/sha256`. For Intel CPUs it has three flavors for AVX2, AVX and SSE whereby the fastest method is automatically chosen depending on CPU capabilities. For ARM CPUs with the Cryptography Extensions advantage is taken of the SHA2 instructions resulting in a massive performance improvement.
+This package is designed as a replacement for `crypto/sha256`. For Intel CPUs it has two flavors for AVX512 and AVX2 (AVX/SSE are also supported). For ARM CPUs with the Cryptography Extensions, advantage is taken of the SHA2 instructions resulting in a massive performance improvement.
 
-This package uses Golang assembly and as such does not depend on cgo. The Intel versions are based on the implementations as described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et al.
+This package uses Golang assembly. The AVX512 version is based on the Intel's "multi-buffer crypto library for IPSec" whereas the other Intel implementations are described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et al.
 
-## Drop-In Replacement
+## New: Support for AVX512
 
-Following code snippet shows you how you can directly replace wherever `crypto/sha256` is used can be replaced with `github.com/minio/sha256-simd`.
+We have added support for AVX512 which results in an up to 8x performance improvement over AVX2 (3.0 GHz Xeon Platinum 8124M CPU):
 
-Before:
+```
+$ benchcmp avx2.txt avx512.txt
+benchmark           AVX2 MB/s    AVX512 MB/s  speedup
+BenchmarkHash5M     448.62       3498.20      7.80x
+```
+
+The original code was developed by Intel as part of the [multi-buffer crypto library](https://github.com/intel/intel-ipsec-mb) for IPSec or more specifically this [AVX512](https://github.com/intel/intel-ipsec-mb/blob/master/avx512/sha256_x16_avx512.asm) implementation. The key idea behind it is to process a total of 16 checksums in parallel by “transposing” 16 (independent) messages of 64 bytes between a total of 16 ZMM registers (each 64 bytes wide).
+
+Transposing the input messages means that in order to take full advantage of the speedup you need to have a (server) workload where multiple threads are doing SHA256 calculations in parallel. Unfortunately for this algorithm it is not possible for two message blocks processed in parallel to be dependent on one another — because then the (interim) result of the first part of the message has to be an input into the processing of the second part of the message.
+
+Whereas the original Intel C implementation requires some sort of explicit scheduling of messages to be processed in parallel, for Golang it makes sense to take advantage of channels in order to group messages together and use channels as well for sending back the results (thereby effectively decoupling the calculations). We have implemented a fairly simple scheduling mechanism that seems to work well in practice.
+
+Due to this differrent way of scheduling, we decided to use an explicit method to instantiate the AVX512 version. Essentially one or more AVX512 processing servers ([`Avx512Server`](https://github.com/minio/sha256-simd/blob/master/sha256blockAvx512_amd64.go#L294)) have to be created whereby each server can hash over 3 GB/s on a single core. An `hash.Hash` object ([`Avx512Digest`](https://github.com/minio/sha256-simd/blob/master/sha256blockAvx512_amd64.go#L45)) is then instantiated using one of these servers and used in the regular fashion:
+
 ```go
-import "crypto/sha256"
+import "github.com/minio/sha256-simd"
 
 func main() {
-        ...
-	shaWriter := sha256.New()
-	io.Copy(shaWriter, file)
-        ...
+	server := sha256.NewAvx512Server()
+	h512 := sha256.NewAvx512(server)
+	h512.Write(fileBlock)
+	digest := h512.Sum([]byte{})
 }
 ```
 
-After:
+Note that, because of the scheduling overhead, for small messages (< 1 MB) you will be better off using the regular SHA256 hashing (but those are typically not performance critical anyway). Some other tips to get the best performance:
+* Have many go routines doing SHA256 calculations in parallel.
+* Try to Write() messages in multiples of 64 bytes.
+* Try to keep the overall length of messages to a roughly similar size ie. 5 MB (this way all 16 ‘lanes’ in the AVX512 computations are contributing as much as possible).
+
+More detailed information can be found in this [blog]() post including scaling across cores.
+
+## Drop-In Replacement
+
+The following code snippet shows how you can use `github.com/minio/sha256-simd`. This will automatically select the fastest method for the architecture on which it will be executed.
+
 ```go
 import "github.com/minio/sha256-simd"
 
@@ -40,46 +61,27 @@ func main() {
 
 ## Performance
 
-Below is the speed in MB/s for a single core (ranked fast to slow) as well as the factor of improvement over `crypto/sha256` (when applicable).
+Below is the speed in MB/s for a single core (ranked fast to slow) for blocks larger than 1 MB.
 
-| Processor                         | Package                   |       Speed | Improvement |
-| --------------------------------- | ------------------------- | -----------:| -----------:|
-| 1.2 GHz ARM Cortex-A53            | minio/sha256-simd (ARM64) |  638.2 MB/s |        105x |
-| 2.4 GHz Intel Xeon CPU E5-2620 v3 | minio/sha256-simd (AVX2)  |  355.0 MB/s |       1.88x |
-| 2.4 GHz Intel Xeon CPU E5-2620 v3 | minio/sha256-simd (AVX)   |  306.0 MB/s |       1.62x |
-| 2.4 GHz Intel Xeon CPU E5-2620 v3 | minio/sha256-simd (SSE)   |  298.7 MB/s |       1.58x |
-| 1.2 GHz ARM Cortex-A53            | crypto/sha256             |    6.1 MB/s |             |
+| Processor                         | SIMD    | Speed (MB/s) |
+| --------------------------------- | ------- | ------------:|
+| 3.0 GHz Intel Xeon Platinum 8124M | AVX512  |         3498 |
+| 1.2 GHz ARM Cortex-A53            | ARM64   |          638 |
+| 3.0 GHz Intel Xeon Platinum 8124M | AVX2    |          449 |
+| 3.1 GHz Intel Core i7             | AVX     |          362 |
+| 3.1 GHz Intel Core i7             | SSE     |          299 |
 
-Note that the AVX2 version is measured with the "unrolled"/"demacro-ed" version. Due to some Golang assembly restrictions the AVX2 version that uses `defines` loses about 15% performance (you can see the macrofied version, which is a little bit easier to read, [here](https://github.com/minio/sha256-simd/blob/e1b0a493b71bb31e3f1bf82d3b8cbd0d6960dfa6/sha256blockAvx2_amd64.s)).
- 
- See further down for detailed performance.
- 
-## Comparison to other hashing techniques
+## asm2plan9s
 
-As measured on Intel Xeon (same as above) with AVX2 version:
+In order to be able to work more easily with AVX512/AVX2 instructions, a separate tool was developed to convert SIMD instructions into the corresponding BYTE sequence as accepted by Go assembly. See [asm2plan9s](https://github.com/minio/asm2plan9s) for more information.
 
-| Method  | Package            |    Speed |
-| ------- | -------------------| --------:|
-| BLAKE2B | [minio/blake2b-simd](https://github.com/minio/blake2b-simd) | 851 MB/s |
-| MD5     | crypto/md5         | 607 MB/s |
-| SHA1    | crypto/sha1        | 522 MB/s |
-| SHA256  | minio/sha256-simd  | 355 MB/s |
-| SHA512  | crypto/sha512      | 306 MB/s |
+## Why and benefits
 
-asm2plan9s
-----------
-
-In order to be able to work more easily with AVX2/AVX instructions, a separate tool was developed to convert AVX2/AVX instructions into the corresponding BYTE sequence as accepted by Go assembly. See [asm2plan9s](https://github.com/minio/asm2plan9s) for more information.
-
-Why and benefits
-----------------
-
-One of the most performance sensitive parts of [Minio](https://minio.io) server (object storage [server](https://github.com/minio/minio) compatible with Amazon S3) is related to SHA256 hash sums calculations. For instance during multi part uploads each part that is uploaded needs to be verified for data integrity by the server. Likewise in order to generated pre-signed URLs check sums must be calculated to ensure their validity.
+One of the most performance sensitive parts of the [Minio](https://github.com/minio/minio) object storage server is related to SHA256 hash sums calculations. For instance during multi part uploads each part that is uploaded needs to be verified for data integrity by the server.
 
 Other applications that can benefit from enhanced SHA256 performance are deduplication in storage systems, intrusion detection, version control systems, integrity checking, etc.
 
-ARM SHA Extensions
-------------------
+## ARM SHA Extensions
 
 The 64-bit ARMv8 core has introduced new instructions for SHA1 and SHA2 acceleration as part of the [Cryptography Extensions](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0501f/CHDFJBCJ.html). Below you can see a small excerpt highlighting one of the rounds as is done for the SHA256 calculation process (for full code see [sha256block_arm64.s](https://github.com/minio/sha256-simd/blob/master/sha256block_arm64.s)).
  
@@ -96,70 +98,23 @@ The 64-bit ARMv8 core has introduced new instructions for SHA1 and SHA2 accelera
  sha256su1  v5.4s, v7.4s, v8.4s
  ```
 
-Detailed benchmarks
--------------------
-
-### ARM64
+### Detailed benchmarks
 
 Benchmarks generated on a 1.2 Ghz Quad-Core ARM Cortex A53 equipped [Pine64](https://www.pine64.com/). 
 
 ```
-minio@minio-arm:~/gopath/src/github.com/sha256-simd$ benchcmp golang.txt arm64.txt 
-benchmark                 old ns/op     new ns/op     delta
-BenchmarkHash8Bytes-4     11836         1403          -88.15%
-BenchmarkHash1K-4         181143        3138          -98.27%
-BenchmarkHash8K-4         1365652       14356         -98.95%
-BenchmarkHash1M-4         173192200     1642954       -99.05%
-
-benchmark                 old MB/s     new MB/s     speedup
-BenchmarkHash8Bytes-4     0.68         5.70         8.38x
-BenchmarkHash1K-4         5.65         326.30       57.75x
-BenchmarkHash8K-4         6.00         570.63       95.11x
-BenchmarkHash1M-4         6.05         638.23       105.49x
+minio@minio-arm:$ benchcmp golang.txt arm64.txt
+benchmark                 golang         arm64        speedup
+BenchmarkHash8Bytes-4     0.68 MB/s      5.70 MB/s      8.38x
+BenchmarkHash1K-4         5.65 MB/s    326.30 MB/s     57.75x
+BenchmarkHash8K-4         6.00 MB/s    570.63 MB/s     95.11x
+BenchmarkHash1M-4         6.05 MB/s    638.23 MB/s    105.49x
 ```
 
-Example performance metrics were generated on  Intel(R) Xeon(R) CPU E5-2620 v3 @ 2.40GHz - 6 physical cores, 12 logical cores running Ubuntu GNU/Linux with kernel version 4.4.0-24-generic (vanilla with no optimizations).
-
-### AVX
-
-```
-$ benchcmp go.txt avx.txt 
-benchmark                  old ns/op     new ns/op     delta
-BenchmarkHash8Bytes-12     446           346           -22.42%
-BenchmarkHash1K-12         5919          3701          -37.47%
-BenchmarkHash8K-12         43791         27222         -37.84%
-BenchmarkHash1M-12         5544989       3426938       -38.20%
-
-benchmark                  old MB/s     new MB/s     speedup
-BenchmarkHash8Bytes-12     17.93        23.06        1.29x
-BenchmarkHash1K-12         172.98       276.64       1.60x
-BenchmarkHash8K-12         187.07       300.93       1.61x
-BenchmarkHash1M-12         189.10       305.98       1.62x
-```
-
-### SSE
-
-```
-$ benchcmp go.txt sse.txt 
-benchmark                  old ns/op     new ns/op     delta
-BenchmarkHash8Bytes-12     446           362           -18.83%
-BenchmarkHash1K-12         5919          3751          -36.63%
-BenchmarkHash8K-12         43791         27396         -37.44%
-BenchmarkHash1M-12         5544989       3444623       -37.88%
-
-benchmark                  old MB/s     new MB/s     speedup
-BenchmarkHash8Bytes-12     17.93        22.05        1.23x
-BenchmarkHash1K-12         172.98       272.92       1.58x
-BenchmarkHash8K-12         187.07       299.01       1.60x
-BenchmarkHash1M-12         189.10       304.41       1.61x
-```
-
-License
--------
+## License
 
 Released under the Apache License v2.0. You can find the complete text in the file LICENSE.
 
-Contributing
-------------
+## Contributing
 
 Contributions are welcome, please send PRs for any enhancements.
