@@ -42,7 +42,7 @@ Note that, because of the scheduling overhead, for small messages (< 1 MB) you w
 * Try to Write() messages in multiples of 64 bytes.
 * Try to keep the overall length of messages to a roughly similar size ie. 5 MB (this way all 16 ‘lanes’ in the AVX512 computations are contributing as much as possible).
 
-More detailed information can be found in this [blog]() post including scaling across cores.
+More detailed information can be found in this [blog](https://blog.minio.io/accelerate-sha256-up-to-8x-over-3-gb-s-per-core-with-avx512-a0b1d64f78f) post including scaling across cores.
 
 ## Drop-In Replacement
 
