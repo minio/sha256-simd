@@ -4,17 +4,20 @@ language: go
 
 os:
 - linux
-- osx
-
-osx_image: xcode7.2
 
 go:
-- 1.6
-- 1.5
+- tip
+- 1.11
+- 1.10
 
 env:
 - ARCH=x86_64
 - ARCH=i686
+
+matrix:
+  fast_finish: true
+  allow_failures:
+  - go: tip
 
 script:
 - diff -au <(gofmt -d .) <(printf "")
