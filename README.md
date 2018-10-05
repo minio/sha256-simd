@@ -24,7 +24,7 @@ Transposing the input messages means that in order to take full advantage of the
 
 Whereas the original Intel C implementation requires some sort of explicit scheduling of messages to be processed in parallel, for Golang it makes sense to take advantage of channels in order to group messages together and use channels as well for sending back the results (thereby effectively decoupling the calculations). We have implemented a fairly simple scheduling mechanism that seems to work well in practice.
 
-Due to this differrent way of scheduling, we decided to use an explicit method to instantiate the AVX512 version. Essentially one or more AVX512 processing servers ([`Avx512Server`](https://github.com/minio/sha256-simd/blob/master/sha256blockAvx512_amd64.go#L294)) have to be created whereby each server can hash over 3 GB/s on a single core. An `hash.Hash` object ([`Avx512Digest`](https://github.com/minio/sha256-simd/blob/master/sha256blockAvx512_amd64.go#L45)) is then instantiated using one of these servers and used in the regular fashion:
+Due to this different way of scheduling, we decided to use an explicit method to instantiate the AVX512 version. Essentially one or more AVX512 processing servers ([`Avx512Server`](https://github.com/minio/sha256-simd/blob/master/sha256blockAvx512_amd64.go#L294)) have to be created whereby each server can hash over 3 GB/s on a single core. An `hash.Hash` object ([`Avx512Digest`](https://github.com/minio/sha256-simd/blob/master/sha256blockAvx512_amd64.go#L45)) is then instantiated using one of these servers and used in the regular fashion:
 
 ```go
 import "github.com/minio/sha256-simd"
