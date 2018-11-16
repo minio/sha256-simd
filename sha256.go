@@ -140,8 +140,15 @@ func (d *digest) Sum(in []byte) []byte {
 	return append(in, hash[:]...)
 }
 
-// Intermediate checksum function
-func (d *digest) checkSum() [Size]byte {
+// Reads sha256 sum to byte array
+func (d *digest) Read(out []byte) (int, error) {
+	// Make a copy of d0 so that caller can keep writing and summing.
+	d0 := *d
+	return d0.read(out)
+}
+
+// Reads sha256 sum to byte array
+func (d *digest) read(digest []byte) (int, error) {
 	len := d.len
 	// Padding.  Add a 1 bit and 0 bits until 56 bytes mod 64.
 	var tmp [64]byte
@@ -165,7 +172,6 @@ func (d *digest) checkSum() [Size]byte {
 
 	h := d.h[:]
 
-	var digest [Size]byte
 	for i, s := range h {
 		digest[i*4] = byte(s >> 24)
 		digest[i*4+1] = byte(s >> 16)
@@ -173,5 +179,11 @@ func (d *digest) checkSum() [Size]byte {
 		digest[i*4+3] = byte(s)
 	}
 
-	return digest
+	return Size, nil
+}
+
+// Intermediate checksum function
+func (d *digest) checkSum() (digest [Size]byte) {
+	d.read(digest[:])
+	return
 }

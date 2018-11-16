@@ -52,6 +52,7 @@ package sha256
 import (
 	"encoding/hex"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 )
@@ -2268,3 +2269,10 @@ func BenchmarkHash8K(b *testing.B)      { benchmarkSize(b, 8192) }
 func BenchmarkHash1MAvx2(b *testing.B)  { benchmarkSize(b, 1024*1024) }
 func BenchmarkHash5MAvx2(b *testing.B)  { benchmarkSize(b, 5*1024*1024) }
 func BenchmarkHash10MAvx2(b *testing.B) { benchmarkSize(b, 10*1024*1024) }
+
+func TestReader(t *testing.T) {
+	c := New()
+	if _, ok := c.(io.Reader); !ok {
+		t.Fatal("Reader not implemented")
+	}
+}
