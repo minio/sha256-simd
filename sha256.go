@@ -29,7 +29,7 @@ const Size = 32
 const BlockSize = 64
 
 const (
-	chunk = 64
+	chunk = BlockSize
 	init0 = 0x6A09E667
 	init1 = 0xBB67AE85
 	init2 = 0x3C6EF372
@@ -62,29 +62,47 @@ func (d *digest) Reset() {
 	d.len = 0
 }
 
+type blockfuncType int
+const (
+	blockfuncGeneric blockfuncType = iota
+	blockfuncAvx2 blockfuncType = iota
+	blockfuncAvx blockfuncType = iota
+	blockfuncSsse blockfuncType = iota
+	blockfuncArm blockfuncType = iota
+)
+var blockfunc blockfuncType
 func block(dig *digest, p []byte) {
+	       if blockfunc == blockfuncAvx2 { blockAvx2Go(dig, p)
+	} else if blockfunc == blockfuncAvx { blockAvxGo(dig, p)
+	} else if blockfunc == blockfuncSsse { blockSsseGo(dig, p)
+	} else if blockfunc == blockfuncArm { blockArmGo(dig, p)
+	} else if blockfunc == blockfuncGeneric { blockGeneric(dig, p)
+	}
+}
+
+func init() {
 	is386bit := runtime.GOARCH == "386"
 	isARM := runtime.GOARCH == "arm"
 	if is386bit || isARM {
-		blockGeneric(dig, p)
+		blockfunc = blockfuncGeneric
 	}
 	switch !is386bit && !isARM {
 	case avx2:
-		blockAvx2Go(dig, p)
+		blockfunc = blockfuncAvx2
 	case avx:
-		blockAvxGo(dig, p)
+		blockfunc = blockfuncAvx
 	case ssse3:
-		blockSsseGo(dig, p)
+		blockfunc = blockfuncSsse
 	case armSha:
-		blockArmGo(dig, p)
+		blockfunc = blockfuncArm
 	default:
-		blockGeneric(dig, p)
+		blockfunc = blockfuncGeneric
 	}
 }
 
 // New returns a new hash.Hash computing the SHA256 checksum.
 func New() hash.Hash {
-	if avx2 || avx || ssse3 || armSha {
+	if blockfunc != blockfuncGeneric {
 		d := new(digest)
 		d.Reset()
 		return d
