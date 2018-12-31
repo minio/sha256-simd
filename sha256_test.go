@@ -2208,25 +2208,37 @@ var golden = []sha256Test{
 }
 
 func TestGolden(t *testing.T) {
+	blockfunc_saved := blockfunc
+
+	if sha && ssse3 && sse41 {
+		blockfunc = blockfuncSha
+		for _, g := range golden {
+			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
+			if Sum256([]byte(g.in)) != g.out {
+				t.Fatalf("SHA: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
+			}
+		}
+	}
 	if avx2 {
+		blockfunc = blockfuncAvx2
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
 			if Sum256([]byte(g.in)) != g.out {
 				t.Fatalf("AVX2: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
 			}
 		}
-		avx2 = false
 	}
 	if avx {
+		blockfunc = blockfuncAvx
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
 			if Sum256([]byte(g.in)) != g.out {
 				t.Fatalf("AVX: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
 			}
 		}
-		avx = false
 	}
 	if ssse3 {
+		blockfunc = blockfuncSsse
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
 			if Sum256([]byte(g.in)) != g.out {
@@ -2234,6 +2246,17 @@ func TestGolden(t *testing.T) {
 			}
 		}
 	}
+	if true {
+		blockfunc = blockfuncGeneric
+		for _, g := range golden {
+			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
+			if Sum256([]byte(g.in)) != g.out {
+				t.Fatalf("Generic: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
+			}
+		}
+	}
+
+	blockfunc = blockfunc_saved
 }
 
 func TestSize(t *testing.T) {
@@ -2255,6 +2278,7 @@ func benchmarkSize(b *testing.B, size int) {
 	var buf = make([]byte, size)
 	b.SetBytes(int64(size))
 	sum := make([]byte, bench.Size())
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bench.Reset()
 		bench.Write(buf[:size])
@@ -2262,9 +2286,33 @@ func benchmarkSize(b *testing.B, size int) {
 	}
 }
 
-func BenchmarkHash8Bytes(b *testing.B)  { benchmarkSize(b, 8) }
-func BenchmarkHash1K(b *testing.B)      { benchmarkSize(b, 1024) }
-func BenchmarkHash8K(b *testing.B)      { benchmarkSize(b, 8192) }
-func BenchmarkHash1MAvx2(b *testing.B)  { benchmarkSize(b, 1024*1024) }
-func BenchmarkHash5MAvx2(b *testing.B)  { benchmarkSize(b, 5*1024*1024) }
-func BenchmarkHash10MAvx2(b *testing.B) { benchmarkSize(b, 10*1024*1024) }
+func BenchmarkHash(b *testing.B) {
+	algos := []struct{ n string; t blockfuncType; f bool } {
+		{ "SHA_", blockfuncSha,     sha && sse41 && ssse3 },
+		{ "AVX2", blockfuncAvx2,    avx2                  },
+		{ "AVX_", blockfuncAvx,     avx                   },
+		{ "SSSE", blockfuncSsse,    ssse3                 },
+		{ "GEN_", blockfuncGeneric, true                  },
+	}
+
+	sizes := []struct{ n string; f func(*testing.B, int); s int } {
+		{ "8Bytes", benchmarkSize, 1<<3  },
+		{ "1K",     benchmarkSize, 1<<10 },
+		{ "8K",     benchmarkSize, 1<<13 },
+		{ "1M",     benchmarkSize, 1<<20 },
+		{ "5M",     benchmarkSize, 5<<20 },
+		{ "10M",    benchmarkSize, 5<<21 },
+	}
+
+	for _, a := range algos {
+		if a.f {
+			blockfunc_saved := blockfunc
+			blockfunc = a.t
+			for _, y := range sizes {
+				s := a.n + "/" + y.n
+				b.Run(s, func(b *testing.B){y.f(b, y.s)})
+			}
+			blockfunc = blockfunc_saved
+		}
+	}
+}
