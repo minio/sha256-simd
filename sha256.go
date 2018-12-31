@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"hash"
 	"runtime"
+	"encoding/binary"
 )
 
 // Size - The size of a SHA256 checksum in bytes.
@@ -63,6 +64,7 @@ func (d *digest) Reset() {
 }
 
 type blockfuncType int
+
 const (
 	blockfuncGeneric blockfuncType = iota
 	blockfuncAvx2 blockfuncType = iota
@@ -70,13 +72,20 @@ const (
 	blockfuncSsse blockfuncType = iota
 	blockfuncArm blockfuncType = iota
 )
+
 var blockfunc blockfuncType
+
 func block(dig *digest, p []byte) {
-	       if blockfunc == blockfuncAvx2 { blockAvx2Go(dig, p)
-	} else if blockfunc == blockfuncAvx { blockAvxGo(dig, p)
-	} else if blockfunc == blockfuncSsse { blockSsseGo(dig, p)
-	} else if blockfunc == blockfuncArm { blockArmGo(dig, p)
-	} else if blockfunc == blockfuncGeneric { blockGeneric(dig, p)
+	if blockfunc == blockfuncAvx2 {
+		blockAvx2Go(dig, p)
+	} else if blockfunc == blockfuncAvx {
+		blockAvxGo(dig, p)
+	} else if blockfunc == blockfuncSsse {
+		blockSsseGo(dig, p)
+	} else if blockfunc == blockfuncArm {
+		blockArmGo(dig, p)
+	} else if blockfunc == blockfuncGeneric {
+		blockGeneric(dig, p)
 	}
 }
 
@@ -113,11 +122,12 @@ func New() hash.Hash {
 }
 
 // Sum256 - single caller sha256 helper
-func Sum256(data []byte) [Size]byte {
+func Sum256(data []byte) (result [Size]byte) {
 	var d digest
 	d.Reset()
 	d.Write(data)
-	return d.checkSum()
+	result = d.checkSum()
+	return
 }
 
 // Return size of checksum
@@ -159,37 +169,100 @@ func (d *digest) Sum(in []byte) []byte {
 }
 
 // Intermediate checksum function
-func (d *digest) checkSum() [Size]byte {
-	len := d.len
+func (d *digest) checkSum() (digest [Size]byte) {
+	d.pad()
+
+	{ const i = 0; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+	{ const i = 1; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+	{ const i = 2; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+	{ const i = 3; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+	{ const i = 4; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+	{ const i = 5; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+	{ const i = 6; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+	{ const i = 7; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
+
+	return
+}
+
+// Apply end of data padding
+func (d *digest) pad() {
 	// Padding.  Add a 1 bit and 0 bits until 56 bytes mod 64.
-	var tmp [64]byte
-	tmp[0] = 0x80
-	if len%64 < 56 {
-		d.Write(tmp[0 : 56-len%64])
-	} else {
-		d.Write(tmp[0 : 64+56-len%64])
+	dx := &d.x
+	i := d.nx
+	d.nx = 0
+
+	// Append a 1 bit and 7 0 bits
+	dx[i] = 0x80
+	i++
+
+	// Clear trailing bytes in last uint64 fragment (if any)
+	if i & 7 != 0 {
+		mask := ^uint64(0) >> (uint(-i & 7) << 3)
+		j := i &^ 7
+		i = j + 8
+		x := binary.LittleEndian.Uint64(dx[j:i])
+		binary.LittleEndian.PutUint64(dx[j:i], x & mask)
 	}
 
-	// Length in bits.
-	len <<= 3
-	for i := uint(0); i < 8; i++ {
-		tmp[i] = byte(len >> (56 - 8*i))
-	}
-	d.Write(tmp[0:8])
-
-	if d.nx != 0 {
-		panic("d.nx != 0")
+	if i == chunk {
+		i = 0
+		block(d, dx[:])
 	}
 
-	h := d.h[:]
-
-	var digest [Size]byte
-	for i, s := range h {
-		digest[i*4] = byte(s >> 24)
-		digest[i*4+1] = byte(s >> 16)
-		digest[i*4+2] = byte(s >> 8)
-		digest[i*4+3] = byte(s)
+	// Clear trailing bytes in block
+	// Mask will be all ones if i < k else all zeros
+	// Unrolled loop with constants avoids branches and bounds checks
+	j := -i
+	{
+		const k = 0
+		mask := uint64(int64(k+j)>>63)
+		x := binary.LittleEndian.Uint64(dx[k:k+8])
+		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
+	}
+	{
+		const k = 8
+		mask := uint64(int64(k+j)>>63)
+		x := binary.LittleEndian.Uint64(dx[k:k+8])
+		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
+	}
+	{
+		const k = 16
+		mask := uint64(int64(k+j)>>63)
+		x := binary.LittleEndian.Uint64(dx[k:k+8])
+		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
+	}
+	{
+		const k = 24
+		mask := uint64(int64(k+j)>>63)
+		x := binary.LittleEndian.Uint64(dx[k:k+8])
+		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
+	}
+	{
+		const k = 32
+		mask := uint64(int64(k+j)>>63)
+		x := binary.LittleEndian.Uint64(dx[k:k+8])
+		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
+	}
+	{
+		const k = 40
+		mask := uint64(int64(k+j)>>63)
+		x := binary.LittleEndian.Uint64(dx[k:k+8])
+		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
+	}
+	{
+		const k = 48
+		mask := uint64(int64(k+j)>>63)
+		x := binary.LittleEndian.Uint64(dx[k:k+8])
+		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
 	}
 
-	return digest
+	// Finally append data length in bits
+	{
+		const k = 56
+		binary.BigEndian.PutUint64(dx[k:k+8], d.len << 3)
+	}
+
+	block(d, dx[:])
+
+	return
 }
