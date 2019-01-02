@@ -70,13 +70,16 @@ const (
 	blockfuncAvx2 blockfuncType = iota
 	blockfuncAvx blockfuncType = iota
 	blockfuncSsse blockfuncType = iota
+	blockfuncSha blockfuncType = iota
 	blockfuncArm blockfuncType = iota
 )
 
 var blockfunc blockfuncType
 
 func block(dig *digest, p []byte) {
-	if blockfunc == blockfuncAvx2 {
+	if blockfunc == blockfuncSha {
+		blockShaGo(dig, p)
+	} else if blockfunc == blockfuncAvx2 {
 		blockAvx2Go(dig, p)
 	} else if blockfunc == blockfuncAvx {
 		blockAvxGo(dig, p)
@@ -92,10 +95,11 @@ func block(dig *digest, p []byte) {
 func init() {
 	is386bit := runtime.GOARCH == "386"
 	isARM := runtime.GOARCH == "arm"
-	if is386bit || isARM {
+	switch {
+	case is386bit || isARM:
 		blockfunc = blockfuncGeneric
-	}
-	switch !is386bit && !isARM {
+	case sha && ssse3 && sse41:
+		blockfunc = blockfuncSha
 	case avx2:
 		blockfunc = blockfuncAvx2
 	case avx:
