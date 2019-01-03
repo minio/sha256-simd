@@ -20,10 +20,10 @@ func sha256hash(m []byte) (r [32]byte) {
 	h[6] = 0x1f83d9ab
 	h[7] = 0x5be0cd19
 
-	x := blockSha(&h, m)
+	blockSha(&h, m)
 	l0 := len(m)
-	m = m[x:]
-	l := len(m)
+	l := l0 & (BlockSize-1)
+	m = m[l0-l:]
 
 	var k [64]byte
 	copy(k[:], m)
