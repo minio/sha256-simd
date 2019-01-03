@@ -175,7 +175,29 @@ func (d *digest) Sum(in []byte) []byte {
 
 // Intermediate checksum function
 func (d *digest) checkSum() (digest [Size]byte) {
-	d.pad()
+	n := d.nx
+
+	var k [64]byte
+	copy(k[:], d.x[:n])
+
+	k[n] = 0x80
+
+	if n >= 56 {
+		block(d, k[:])
+
+		// clear block buffer - go compiles this to optimal 1x xorps + 4x movups
+		// unfortunately expressing this more succinctly results in much worse code
+		k[ 0]=0; k[ 1]=0; k[ 2]=0; k[ 3]=0; k[ 4]=0; k[ 5]=0; k[ 6]=0; k[ 7]=0;
+		k[ 8]=0; k[ 9]=0; k[10]=0; k[11]=0; k[12]=0; k[13]=0; k[14]=0; k[15]=0;
+		k[16]=0; k[17]=0; k[18]=0; k[19]=0; k[20]=0; k[21]=0; k[22]=0; k[23]=0;
+		k[24]=0; k[25]=0; k[26]=0; k[27]=0; k[28]=0; k[29]=0; k[30]=0; k[31]=0;
+		k[32]=0; k[33]=0; k[34]=0; k[35]=0; k[36]=0; k[37]=0; k[38]=0; k[39]=0;
+		k[40]=0; k[41]=0; k[42]=0; k[43]=0; k[44]=0; k[45]=0; k[46]=0; k[47]=0;
+		k[48]=0; k[49]=0; k[50]=0; k[51]=0; k[52]=0; k[53]=0; k[54]=0; k[55]=0;
+		k[56]=0; k[57]=0; k[58]=0; k[59]=0; k[60]=0; k[61]=0; k[62]=0; k[63]=0;
+	}
+	binary.BigEndian.PutUint64(k[56:64], uint64(d.len) << 3)
+	block(d, k[:])
 
 	{ const i = 0; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
 	{ const i = 1; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
@@ -185,89 +207,6 @@ func (d *digest) checkSum() (digest [Size]byte) {
 	{ const i = 5; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
 	{ const i = 6; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
 	{ const i = 7; binary.BigEndian.PutUint32(digest[i*4:i*4+4], d.h[i]); }
-
-	return
-}
-
-// Apply end of data padding
-func (d *digest) pad() {
-	// Padding.  Add a 1 bit and 0 bits until 56 bytes mod 64.
-	dx := &d.x
-	i := d.nx
-	d.nx = 0
-
-	// Append a 1 bit and 7 0 bits
-	dx[i] = 0x80
-	i++
-
-	// Clear trailing bytes in last uint64 fragment (if any)
-	if i & 7 != 0 {
-		mask := ^uint64(0) >> (uint(-i & 7) << 3)
-		j := i &^ 7
-		i = j + 8
-		x := binary.LittleEndian.Uint64(dx[j:i])
-		binary.LittleEndian.PutUint64(dx[j:i], x & mask)
-	}
-
-	if i == chunk {
-		i = 0
-		block(d, dx[:])
-	}
-
-	// Clear trailing bytes in block
-	// Mask will be all ones if i < k else all zeros
-	// Unrolled loop with constants avoids branches and bounds checks
-	j := -i
-	{
-		const k = 0
-		mask := uint64(int64(k+j)>>63)
-		x := binary.LittleEndian.Uint64(dx[k:k+8])
-		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
-	}
-	{
-		const k = 8
-		mask := uint64(int64(k+j)>>63)
-		x := binary.LittleEndian.Uint64(dx[k:k+8])
-		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
-	}
-	{
-		const k = 16
-		mask := uint64(int64(k+j)>>63)
-		x := binary.LittleEndian.Uint64(dx[k:k+8])
-		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
-	}
-	{
-		const k = 24
-		mask := uint64(int64(k+j)>>63)
-		x := binary.LittleEndian.Uint64(dx[k:k+8])
-		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
-	}
-	{
-		const k = 32
-		mask := uint64(int64(k+j)>>63)
-		x := binary.LittleEndian.Uint64(dx[k:k+8])
-		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
-	}
-	{
-		const k = 40
-		mask := uint64(int64(k+j)>>63)
-		x := binary.LittleEndian.Uint64(dx[k:k+8])
-		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
-	}
-	{
-		const k = 48
-		mask := uint64(int64(k+j)>>63)
-		x := binary.LittleEndian.Uint64(dx[k:k+8])
-		binary.LittleEndian.PutUint64(dx[k:k+8], x & mask)
-	}
-
-	// Finally append data length in bits
-	{
-		const k = 56
-		binary.BigEndian.PutUint64(dx[k:k+8], d.len << 3)
-	}
-
-	block(d, dx[:])
 
 	return
 }
