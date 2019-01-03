@@ -3,9 +3,9 @@
 package sha256
 
 import (
-	"testing"
 	"crypto/sha256"
 	"encoding/binary"
+	"testing"
 )
 
 func sha256hash(m []byte) (r [32]byte) {
@@ -22,7 +22,7 @@ func sha256hash(m []byte) (r [32]byte) {
 
 	blockSha(&h, m)
 	l0 := len(m)
-	l := l0 & (BlockSize-1)
+	l := l0 & (BlockSize - 1)
 	m = m[l0-l:]
 
 	var k [64]byte
@@ -32,20 +32,20 @@ func sha256hash(m []byte) (r [32]byte) {
 
 	if l >= 56 {
 		blockSha(&h, k[:])
-		binary.LittleEndian.PutUint64(k[ 0: 8], 0)
-		binary.LittleEndian.PutUint64(k[ 8:16], 0)
+		binary.LittleEndian.PutUint64(k[0:8], 0)
+		binary.LittleEndian.PutUint64(k[8:16], 0)
 		binary.LittleEndian.PutUint64(k[16:24], 0)
 		binary.LittleEndian.PutUint64(k[24:32], 0)
 		binary.LittleEndian.PutUint64(k[32:40], 0)
 		binary.LittleEndian.PutUint64(k[40:48], 0)
 		binary.LittleEndian.PutUint64(k[48:56], 0)
 	}
-	binary.BigEndian.PutUint64(k[56:64], uint64(l0) << 3)
+	binary.BigEndian.PutUint64(k[56:64], uint64(l0)<<3)
 	blockSha(&h, k[:])
 
-	binary.BigEndian.PutUint32(r[ 0: 4], h[0])
-	binary.BigEndian.PutUint32(r[ 4: 8], h[1])
-	binary.BigEndian.PutUint32(r[ 8:12], h[2])
+	binary.BigEndian.PutUint32(r[0:4], h[0])
+	binary.BigEndian.PutUint32(r[4:8], h[1])
+	binary.BigEndian.PutUint32(r[8:12], h[2])
 	binary.BigEndian.PutUint32(r[12:16], h[3])
 	binary.BigEndian.PutUint32(r[16:20], h[4])
 	binary.BigEndian.PutUint32(r[20:24], h[5])
@@ -55,13 +55,13 @@ func sha256hash(m []byte) (r [32]byte) {
 	return
 }
 
-func runTestSha(hashfunc func([]byte) ([32]byte)) bool {
-	var m []uint8 = []byte("This is a message. This is a message. This is a message. This is a message.")
+func runTestSha(hashfunc func([]byte) [32]byte) bool {
+	var m = []byte("This is a message. This is a message. This is a message. This is a message.")
 
-	a_r := hashfunc(m)
-	b_r := sha256.Sum256(m)
+	ar := hashfunc(m)
+	br := sha256.Sum256(m)
 
-	return a_r == b_r
+	return ar == br
 }
 
 func TestSha0(t *testing.T) {

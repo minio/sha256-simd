@@ -210,14 +210,14 @@ func TestAvx512Server(t *testing.T) {
 	for i := 0; i < 16; i++ {
 		input := make([]byte, 64)
 		copy(input, golden[offset+i].in)
-		server.Write(uint64(Avx512ServerUid+i), input)
+		server.Write(uint64(Avx512ServerUID+i), input)
 	}
 
 	// Second block of 64 bytes
 	for i := 0; i < 16; i++ {
 		input := make([]byte, 64)
 		copy(input, golden[offset+i].in[64:])
-		server.Write(uint64(Avx512ServerUid+i), input)
+		server.Write(uint64(Avx512ServerUID+i), input)
 	}
 
 	wg := sync.WaitGroup{}
@@ -241,7 +241,7 @@ func TestAvx512Server(t *testing.T) {
 				t.Fatalf("Sum256 function: sha256(%s) = %s want %s", golden[offset+i].in, hex.EncodeToString(output[:]), hex.EncodeToString(golden[offset+i].out[:]))
 			}
 			wg.Done()
-		}(i, uint64(Avx512ServerUid+i), input)
+		}(i, uint64(Avx512ServerUID+i), input)
 	}
 
 	wg.Wait()

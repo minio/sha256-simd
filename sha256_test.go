@@ -2208,7 +2208,7 @@ var golden = []sha256Test{
 }
 
 func TestGolden(t *testing.T) {
-	blockfunc_saved := blockfunc
+	blockfuncSaved := blockfunc
 
 	if sha && ssse3 && sse41 {
 		blockfunc = blockfuncSha
@@ -2256,7 +2256,7 @@ func TestGolden(t *testing.T) {
 		}
 	}
 
-	blockfunc = blockfunc_saved
+	blockfunc = blockfuncSaved
 }
 
 func TestSize(t *testing.T) {
@@ -2287,32 +2287,40 @@ func benchmarkSize(b *testing.B, size int) {
 }
 
 func BenchmarkHash(b *testing.B) {
-	algos := []struct{ n string; t blockfuncType; f bool } {
-		{ "SHA_", blockfuncSha,     sha && sse41 && ssse3 },
-		{ "AVX2", blockfuncAvx2,    avx2                  },
-		{ "AVX_", blockfuncAvx,     avx                   },
-		{ "SSSE", blockfuncSsse,    ssse3                 },
-		{ "GEN_", blockfuncGeneric, true                  },
+	algos := []struct {
+		n string
+		t blockfuncType
+		f bool
+	}{
+		{"SHA_", blockfuncSha, sha && sse41 && ssse3},
+		{"AVX2", blockfuncAvx2, avx2},
+		{"AVX_", blockfuncAvx, avx},
+		{"SSSE", blockfuncSsse, ssse3},
+		{"GEN_", blockfuncGeneric, true},
 	}
 
-	sizes := []struct{ n string; f func(*testing.B, int); s int } {
-		{ "8Bytes", benchmarkSize, 1<<3  },
-		{ "1K",     benchmarkSize, 1<<10 },
-		{ "8K",     benchmarkSize, 1<<13 },
-		{ "1M",     benchmarkSize, 1<<20 },
-		{ "5M",     benchmarkSize, 5<<20 },
-		{ "10M",    benchmarkSize, 5<<21 },
+	sizes := []struct {
+		n string
+		f func(*testing.B, int)
+		s int
+	}{
+		{"8Bytes", benchmarkSize, 1 << 3},
+		{"1K", benchmarkSize, 1 << 10},
+		{"8K", benchmarkSize, 1 << 13},
+		{"1M", benchmarkSize, 1 << 20},
+		{"5M", benchmarkSize, 5 << 20},
+		{"10M", benchmarkSize, 5 << 21},
 	}
 
 	for _, a := range algos {
 		if a.f {
-			blockfunc_saved := blockfunc
+			blockfuncSaved := blockfunc
 			blockfunc = a.t
 			for _, y := range sizes {
 				s := a.n + "/" + y.n
-				b.Run(s, func(b *testing.B){y.f(b, y.s)})
+				b.Run(s, func(b *testing.B) { y.f(b, y.s) })
 			}
-			blockfunc = blockfunc_saved
+			blockfunc = blockfuncSaved
 		}
 	}
 }
