@@ -67,6 +67,7 @@ type blockfuncType int
 
 const (
 	blockfuncGeneric blockfuncType = iota
+	blockfuncAvx512 blockfuncType = iota
 	blockfuncAvx2 blockfuncType = iota
 	blockfuncAvx blockfuncType = iota
 	blockfuncSsse blockfuncType = iota

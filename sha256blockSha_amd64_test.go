@@ -4,7 +4,6 @@ package sha256
 
 import (
 	"testing"
-	"fmt"
 	"crypto/sha256"
 	"encoding/binary"
 )
@@ -61,9 +60,6 @@ func runTestSha(hashfunc func([]byte) ([32]byte)) bool {
 
 	a_r := hashfunc(m)
 	b_r := sha256.Sum256(m)
-
-	fmt.Printf("%x\n", a_r)
-	fmt.Printf("%x\n", b_r)
 
 	return a_r == b_r
 }
