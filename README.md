@@ -1,6 +1,6 @@
 # sha256-simd
 
-Accelerate SHA256 computations in pure Go using AVX512 and AVX2 for Intel and ARM64 for ARM. On AVX512 it provides an up to 8x improvement (over 3 GB/s per core) in comparison to AVX2.
+Accelerate SHA256 computations in pure Go using AVX512, SHA Extensions and AVX2 for Intel and ARM64 for ARM. On AVX512 it provides an up to 8x improvement (over 3 GB/s per core) in comparison to AVX2. SHA Extensions give a performance boost of close to 4x over AVX2.
 
 ## Introduction
 
@@ -8,7 +8,17 @@ This package is designed as a replacement for `crypto/sha256`. For Intel CPUs it
 
 This package uses Golang assembly. The AVX512 version is based on the Intel's "multi-buffer crypto library for IPSec" whereas the other Intel implementations are described in "Fast SHA-256 Implementations on Intel Architecture Processors" by J. Guilford et al.
 
-## New: Support for AVX512
+## New: Support for Intel SHA Extensions
+
+Support for the Intel SHA Extensions has been added. On CPUs that support it (known thus far Intel Celeron J3455 and AMD Ryzen) it gives a significant boost in performance (with thanks to @AudriusButkevicius for reporting the results; full results [here](https://github.com/minio/sha256-simd/pull/37#issuecomment-451607827)).
+
+```
+$ benchcmp avx2.txt sha-ext.txt
+benchmark           AVX2 MB/s    SHA Ext MB/s  speedup
+BenchmarkHash5M     514.40       1975.17       3.84x
+```
+
+## Support for AVX512
 
 We have added support for AVX512 which results in an up to 8x performance improvement over AVX2 (3.0 GHz Xeon Platinum 8124M CPU):
 
@@ -66,6 +76,7 @@ Below is the speed in MB/s for a single core (ranked fast to slow) for blocks la
 | Processor                         | SIMD    | Speed (MB/s) |
 | --------------------------------- | ------- | ------------:|
 | 3.0 GHz Intel Xeon Platinum 8124M | AVX512  |         3498 |
+| 3.7 GHz AMD Ryzen 7 2700X         | SHA Ext |         1979 |
 | 1.2 GHz ARM Cortex-A53            | ARM64   |          638 |
 | 3.0 GHz Intel Xeon Platinum 8124M | AVX2    |          449 |
 | 3.1 GHz Intel Core i7             | AVX     |          362 |
