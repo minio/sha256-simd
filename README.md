@@ -10,13 +10,15 @@ This package uses Golang assembly. The AVX512 version is based on the Intel's "m
 
 ## New: Support for Intel SHA Extensions
 
-Support for the Intel SHA Extensions has been added. On CPUs that support it (known thus far Intel Celeron J3455 and AMD Ryzen) it gives a significant boost in performance (with thanks to @AudriusButkevicius for reporting the results; full results [here](https://github.com/minio/sha256-simd/pull/37#issuecomment-451607827)).
+Support for the Intel SHA Extensions has been added by Kristofer Peterson (@svenski123), originally developed for spacemeshos [here](https://github.com/spacemeshos/POET/issues/23). On CPUs that support it (known thus far Intel Celeron J3455 and AMD Ryzen) it gives a significant boost in performance (with thanks to @AudriusButkevicius for reporting the results; full results [here](https://github.com/minio/sha256-simd/pull/37#issuecomment-451607827)).
 
 ```
 $ benchcmp avx2.txt sha-ext.txt
 benchmark           AVX2 MB/s    SHA Ext MB/s  speedup
 BenchmarkHash5M     514.40       1975.17       3.84x
 ```
+
+Thanks to Kristofer Peterson, we also added additional performance changes such as optimized padding, endian conversions which sped up all implementations i.e. Intel SHA alone while doubled performance for small sizes, the other changes increased everything roughly 50%.
 
 ## Support for AVX512
 
@@ -95,7 +97,7 @@ Other applications that can benefit from enhanced SHA256 performance are dedupli
 ## ARM SHA Extensions
 
 The 64-bit ARMv8 core has introduced new instructions for SHA1 and SHA2 acceleration as part of the [Cryptography Extensions](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0501f/CHDFJBCJ.html). Below you can see a small excerpt highlighting one of the rounds as is done for the SHA256 calculation process (for full code see [sha256block_arm64.s](https://github.com/minio/sha256-simd/blob/master/sha256block_arm64.s)).
- 
+
  ```
  sha256h    q2, q3, v9.4s
  sha256h2   q3, q4, v9.4s
@@ -111,7 +113,7 @@ The 64-bit ARMv8 core has introduced new instructions for SHA1 and SHA2 accelera
 
 ### Detailed benchmarks
 
-Benchmarks generated on a 1.2 Ghz Quad-Core ARM Cortex A53 equipped [Pine64](https://www.pine64.com/). 
+Benchmarks generated on a 1.2 Ghz Quad-Core ARM Cortex A53 equipped [Pine64](https://www.pine64.com/).
 
 ```
 minio@minio-arm:$ benchcmp golang.txt arm64.txt
