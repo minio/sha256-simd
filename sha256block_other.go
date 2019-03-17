@@ -22,3 +22,19 @@ func blockAvxGo(dig *digest, p []byte)  {}
 func blockSsseGo(dig *digest, p []byte) {}
 func blockShaGo(dig *digest, p []byte)  {}
 func blockArmGo(dig *digest, p []byte)  {}
+
+func block(dig *digest, p []byte) {
+	if blockfunc == blockfuncSha {
+		blockShaGo(dig, p)
+	} else if blockfunc == blockfuncAvx2 {
+		blockAvx2Go(dig, p)
+	} else if blockfunc == blockfuncAvx {
+		blockAvxGo(dig, p)
+	} else if blockfunc == blockfuncSsse {
+		blockSsseGo(dig, p)
+	} else if blockfunc == blockfuncArm {
+		blockArmGo(dig, p)
+	} else if blockfunc == blockfuncGeneric {
+		blockGeneric(dig, p)
+	}
+}
