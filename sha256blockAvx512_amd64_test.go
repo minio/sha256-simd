@@ -1,3 +1,5 @@
+//+build !noasm
+
 /*
  * Minio Cloud Storage, (C) 2017 Minio, Inc.
  *
