@@ -22,3 +22,4 @@ script:
 - diff -au <(gofmt -d .) <(printf "")
 - go test -race -v ./...
 - go tool vet -asmdecl .
+- ./test-architectures.sh
