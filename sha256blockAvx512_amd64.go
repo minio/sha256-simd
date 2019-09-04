@@ -376,7 +376,7 @@ func (a512srv *Avx512Server) reset(uid uint64) {
 }
 
 // Invoke assembly and send results back
-func (a512srv *Avx512Server) blocks() (err error) {
+func (a512srv *Avx512Server) blocks() {
 
 	inputs := [16][]byte{}
 	for i := range inputs {
@@ -398,7 +398,6 @@ func (a512srv *Avx512Server) blocks() (err error) {
 			delete(a512srv.digests, uid) // Delete entry from hashmap
 		}
 	}
-	return
 }
 
 func (a512srv *Avx512Server) Write(uid uint64, p []byte) (nn int, err error) {
