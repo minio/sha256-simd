@@ -85,6 +85,8 @@ func init() {
 		blockfunc = blockfuncGeneric
 	case sha && ssse3 && sse41:
 		blockfunc = blockfuncSha
+	case avx512:
+		blockfunc = blockfuncAvx512
 	case avx2:
 		blockfunc = blockfuncAvx2
 	case avx:
