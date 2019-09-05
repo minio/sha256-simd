@@ -52,6 +52,7 @@ package sha256
 import (
 	"encoding/hex"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -2210,6 +2211,25 @@ var golden = []sha256Test{
 func TestGolden(t *testing.T) {
 	blockfuncSaved := blockfunc
 
+	defer func() {
+		blockfunc = blockfuncSaved
+	}()
+
+	if true {
+		blockfunc = blockfuncGeneric
+		for _, g := range golden {
+			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
+			if Sum256([]byte(g.in)) != g.out {
+				t.Fatalf("Generic: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
+			}
+		}
+	}
+
+	if runtime.GOARCH == "386" || runtime.GOARCH == "arm" {
+		// doesn't support anything but the generic version.
+		return
+	}
+
 	if sha && ssse3 && sse41 {
 		blockfunc = blockfuncSha
 		for _, g := range golden {
@@ -2246,17 +2266,6 @@ func TestGolden(t *testing.T) {
 			}
 		}
 	}
-	if true {
-		blockfunc = blockfuncGeneric
-		for _, g := range golden {
-			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
-			if Sum256([]byte(g.in)) != g.out {
-				t.Fatalf("Generic: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
-			}
-		}
-	}
-
-	blockfunc = blockfuncSaved
 }
 
 func TestSize(t *testing.T) {
