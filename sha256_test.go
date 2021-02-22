@@ -52,9 +52,10 @@ package sha256
 import (
 	"encoding/hex"
 	"fmt"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/klauspost/cpuid/v2"
 )
 
 type sha256Test struct {
@@ -2225,12 +2226,7 @@ func TestGolden(t *testing.T) {
 		}
 	}
 
-	if runtime.GOARCH == "386" || runtime.GOARCH == "arm" {
-		// doesn't support anything but the generic version.
-		return
-	}
-
-	if sha && ssse3 && sse41 {
+	if cpuid.CPU.Supports(cpuid.SHA, cpuid.SSSE3, cpuid.SSE4) {
 		blockfunc = blockfuncSha
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
@@ -2239,30 +2235,13 @@ func TestGolden(t *testing.T) {
 			}
 		}
 	}
-	if avx2 {
-		blockfunc = blockfuncAvx2
+
+	if hasArmSha2() {
+		blockfunc = blockfuncArm
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
 			if Sum256([]byte(g.in)) != g.out {
-				t.Fatalf("AVX2: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
-			}
-		}
-	}
-	if avx {
-		blockfunc = blockfuncAvx
-		for _, g := range golden {
-			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
-			if Sum256([]byte(g.in)) != g.out {
-				t.Fatalf("AVX: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
-			}
-		}
-	}
-	if ssse3 {
-		blockfunc = blockfuncSsse
-		for _, g := range golden {
-			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
-			if Sum256([]byte(g.in)) != g.out {
-				t.Fatalf("SSSE3: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
+				t.Fatalf("ARM: Sum256 function: sha256(%s) = %s want %s", g.in, s, hex.EncodeToString(g.out[:]))
 			}
 		}
 	}
@@ -2301,10 +2280,7 @@ func BenchmarkHash(b *testing.B) {
 		t blockfuncType
 		f bool
 	}{
-		{"SHA_", blockfuncSha, sha && sse41 && ssse3},
-		{"AVX2", blockfuncAvx2, avx2},
-		{"AVX_", blockfuncAvx, avx},
-		{"SSSE", blockfuncSsse, ssse3},
+		{"SHA_", blockfuncSha, hasSHAExtensions()},
 		{"GEN_", blockfuncGeneric, true},
 	}
 
