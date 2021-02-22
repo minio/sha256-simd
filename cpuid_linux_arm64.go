@@ -20,19 +20,9 @@ package sha256
 import (
 	"bytes"
 	"io/ioutil"
+
+	"github.com/klauspost/cpuid/v2"
 )
-
-func cpuid(op uint32) (eax, ebx, ecx, edx uint32) {
-	return 0, 0, 0, 0
-}
-
-func cpuidex(op, op2 uint32) (eax, ebx, ecx, edx uint32) {
-	return 0, 0, 0, 0
-}
-
-func xgetbv(index uint32) (eax, edx uint32) {
-	return 0, 0
-}
 
 // File to check for cpu capabilities.
 const procCPUInfo = "/proc/cpuinfo"
@@ -40,7 +30,12 @@ const procCPUInfo = "/proc/cpuinfo"
 // Feature to check for.
 const sha256Feature = "sha2"
 
-func haveArmSha() bool {
+func hasArmSha2() bool {
+	if cpuid.CPU.Has(cpuid.SHA2) {
+		return true
+	}
+
+	// Fall back to cpuinfo parsing...
 	cpuInfo, err := ioutil.ReadFile(procCPUInfo)
 	if err != nil {
 		return false

@@ -1,4 +1,6 @@
-// Minio Cloud Storage, (C) 2016 Minio, Inc.
+// +build !arm64,!linux
+
+// Minio Cloud Storage, (C) 2021 Minio, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,22 +15,10 @@
 // limitations under the License.
 //
 
-// +build !386,!amd64,!arm,!arm64 arm64,!linux
-
 package sha256
 
-func cpuid(op uint32) (eax, ebx, ecx, edx uint32) {
-	return 0, 0, 0, 0
-}
+import "github.com/klauspost/cpuid/v2"
 
-func cpuidex(op, op2 uint32) (eax, ebx, ecx, edx uint32) {
-	return 0, 0, 0, 0
-}
-
-func xgetbv(index uint32) (eax, edx uint32) {
-	return 0, 0
-}
-
-func haveArmSha() bool {
-	return false
+func hasArmSha2() bool {
+	return cpuid.CPU.Has(cpuid.SHA2)
 }

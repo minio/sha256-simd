@@ -71,7 +71,7 @@ func TestSha0(t *testing.T) {
 }
 
 func TestSha1(t *testing.T) {
-	if sha && ssse3 && sse41 && !runTestSha(sha256hash) {
+	if hasSHAExtensions() && !runTestSha(sha256hash) {
 		t.Errorf("FAILED")
 	}
 }
