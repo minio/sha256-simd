@@ -1,4 +1,4 @@
-//+build !noasm,!appengine
+//+build !noasm,!appengine,gc
 
 // ARM64 version of SHA256
 
