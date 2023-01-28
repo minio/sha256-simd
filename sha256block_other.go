@@ -1,4 +1,5 @@
-//+build appengine noasm !amd64,!arm64 !gc
+//go:build appengine || noasm || (!amd64 && !arm64) || !gc
+// +build appengine noasm !amd64,!arm64 !gc
 
 /*
  * Minio Cloud Storage, (C) 2019 Minio, Inc.
