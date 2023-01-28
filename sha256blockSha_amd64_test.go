@@ -72,7 +72,7 @@ func TestSha0(t *testing.T) {
 }
 
 func TestSha1(t *testing.T) {
-	if hasSHAExtensions() && !runTestSha(sha256hash) {
+	if hasIntelSha && !runTestSha(sha256hash) {
 		t.Errorf("FAILED")
 	}
 }
