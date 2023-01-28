@@ -21,7 +21,7 @@ func sha256hash(m []byte) (r [32]byte) {
 	h[6] = 0x1f83d9ab
 	h[7] = 0x5be0cd19
 
-	blockSha(&h, m)
+	blockIntelSha(&h, m)
 	l0 := len(m)
 	l := l0 & (BlockSize - 1)
 	m = m[l0-l:]
@@ -32,7 +32,7 @@ func sha256hash(m []byte) (r [32]byte) {
 	k[l] = 0x80
 
 	if l >= 56 {
-		blockSha(&h, k[:])
+		blockIntelSha(&h, k[:])
 		binary.LittleEndian.PutUint64(k[0:8], 0)
 		binary.LittleEndian.PutUint64(k[8:16], 0)
 		binary.LittleEndian.PutUint64(k[16:24], 0)
@@ -42,7 +42,7 @@ func sha256hash(m []byte) (r [32]byte) {
 		binary.LittleEndian.PutUint64(k[48:56], 0)
 	}
 	binary.BigEndian.PutUint64(k[56:64], uint64(l0)<<3)
-	blockSha(&h, k[:])
+	blockIntelSha(&h, k[:])
 
 	binary.BigEndian.PutUint32(r[0:4], h[0])
 	binary.BigEndian.PutUint32(r[4:8], h[1])

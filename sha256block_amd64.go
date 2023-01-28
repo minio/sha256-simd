@@ -19,10 +19,10 @@
 
 package sha256
 
-func blockArmGo(dig *digest, p []byte) {
-	panic("blockArmGo called unexpectedly")
+func blockArmSha2Go(dig *digest, p []byte) {
+	panic("blockArmSha2Go called unexpectedly")
 }
 
-func blockShaGo(dig *digest, p []byte) {
-	blockSha(&dig.h, p)
+func blockIntelShaGo(dig *digest, p []byte) {
+	blockIntelSha(&dig.h, p)
 }

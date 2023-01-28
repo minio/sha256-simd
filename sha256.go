@@ -262,9 +262,9 @@ func (d *digest) checkSum() (digest [Size]byte) {
 
 func block(dig *digest, p []byte) {
 	if blockfunc == blockfuncIntelSha {
-		blockShaGo(dig, p)
+		blockIntelShaGo(dig, p)
 	} else if blockfunc == blockfuncArmSha2 {
-		blockArmGo(dig, p)
+		blockArmSha2Go(dig, p)
 	} else {
 		blockGeneric(dig, p)
 	}
