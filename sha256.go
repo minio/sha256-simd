@@ -20,9 +20,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"hash"
-	"runtime"
-
-	"github.com/klauspost/cpuid/v2"
 )
 
 // Size - The size of a SHA256 checksum in bytes.
@@ -68,42 +65,34 @@ func (d *digest) Reset() {
 type blockfuncType int
 
 const (
-	blockfuncGeneric blockfuncType = iota
-	blockfuncSha     blockfuncType = iota
-	blockfuncArm     blockfuncType = iota
+	blockfuncStdlib blockfuncType = iota
+	blockfuncIntelSha
+	blockfuncArmSha2
+	blockfuncForceGeneric = -1
 )
 
 var blockfunc blockfuncType
 
 func init() {
-	blockfunc = blockfuncGeneric
 	switch {
-	case hasSHAExtensions():
-		blockfunc = blockfuncSha
+	case hasIntelSha:
+		blockfunc = blockfuncIntelSha
 	case hasArmSha2():
-		blockfunc = blockfuncArm
-	default:
-		blockfunc = blockfuncGeneric
+		blockfunc = blockfuncArmSha2
 	}
-}
-
-var avx512 = cpuid.CPU.Supports(cpuid.AVX512F, cpuid.AVX512DQ, cpuid.AVX512BW, cpuid.AVX512VL)
-
-// hasSHAExtensions return  whether the cpu supports SHA extensions.
-func hasSHAExtensions() bool {
-	return cpuid.CPU.Supports(cpuid.SHA, cpuid.SSSE3, cpuid.SSE4) && runtime.GOARCH == "amd64"
 }
 
 // New returns a new hash.Hash computing the SHA256 checksum.
 func New() hash.Hash {
-	if blockfunc != blockfuncGeneric {
-		d := new(digest)
-		d.Reset()
-		return d
+	if blockfunc == blockfuncStdlib {
+		// Fallback to the standard golang implementation
+		// if no features were found.
+		return sha256.New()
 	}
-	// Fallback to the standard golang implementation
-	// if no features were found.
-	return sha256.New()
+
+	d := new(digest)
+	d.Reset()
+	return d
 }
 
 // Sum256 - single caller sha256 helper
@@ -272,11 +261,11 @@ func (d *digest) checkSum() (digest [Size]byte) {
 }
 
 func block(dig *digest, p []byte) {
-	if blockfunc == blockfuncSha {
-		blockShaGo(dig, p)
-	} else if blockfunc == blockfuncArm {
-		blockArmGo(dig, p)
-	} else if blockfunc == blockfuncGeneric {
+	if blockfunc == blockfuncIntelSha {
+		blockIntelShaGo(dig, p)
+	} else if blockfunc == blockfuncArmSha2 {
+		blockArmSha2Go(dig, p)
+	} else {
 		blockGeneric(dig, p)
 	}
 }
