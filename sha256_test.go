@@ -58,8 +58,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/klauspost/cpuid/v2"
 )
 
 type sha256Test struct {
@@ -2221,7 +2219,7 @@ func TestGolden(t *testing.T) {
 	}()
 
 	if true {
-		blockfunc = blockfuncGeneric
+		blockfunc = blockfuncForceGeneric
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
 			if Sum256([]byte(g.in)) != g.out {
@@ -2230,8 +2228,8 @@ func TestGolden(t *testing.T) {
 		}
 	}
 
-	if cpuid.CPU.Supports(cpuid.SHA, cpuid.SSSE3, cpuid.SSE4) {
-		blockfunc = blockfuncSha
+	if hasIntelSha {
+		blockfunc = blockfuncIntelSha
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
 			if Sum256([]byte(g.in)) != g.out {
@@ -2241,7 +2239,7 @@ func TestGolden(t *testing.T) {
 	}
 
 	if hasArmSha2() {
-		blockfunc = blockfuncArm
+		blockfunc = blockfuncArmSha2
 		for _, g := range golden {
 			s := fmt.Sprintf("%x", Sum256([]byte(g.in)))
 			if Sum256([]byte(g.in)) != g.out {
@@ -2273,20 +2271,26 @@ func benchmarkSize(b *testing.B, size int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bench.Reset()
-		bench.Write(buf[:size])
+		bench.Write(buf)
 		bench.Sum(sum[:0])
 	}
 }
 
 func BenchmarkHash(b *testing.B) {
-	algos := []struct {
+	type alg struct {
 		n string
 		t blockfuncType
-		f bool
-	}{
-		{"SHA_", blockfuncSha, hasSHAExtensions()},
-		{"GEN_", blockfuncGeneric, true},
 	}
+	algos := make([]alg, 0, 2)
+
+	algos = append(algos, alg{"Generic", blockfuncForceGeneric})
+	if hasIntelSha {
+		algos = append(algos, alg{"IntelSHA", blockfuncIntelSha})
+	}
+	if hasArmSha2() {
+		algos = append(algos, alg{"ArmSha2", blockfuncArmSha2})
+	}
+	algos = append(algos, alg{"GoStdlib", blockfuncStdlib})
 
 	sizes := []struct {
 		n string
@@ -2294,6 +2298,7 @@ func BenchmarkHash(b *testing.B) {
 		s int
 	}{
 		{"8Bytes", benchmarkSize, 1 << 3},
+		{"64Bytes", benchmarkSize, 1 << 6},
 		{"1K", benchmarkSize, 1 << 10},
 		{"8K", benchmarkSize, 1 << 13},
 		{"1M", benchmarkSize, 1 << 20},
@@ -2302,15 +2307,16 @@ func BenchmarkHash(b *testing.B) {
 	}
 
 	for _, a := range algos {
-		if a.f {
-			blockfuncSaved := blockfunc
+		func() {
+			orig := blockfunc
+			defer func() { blockfunc = orig }()
+
 			blockfunc = a.t
 			for _, y := range sizes {
 				s := a.n + "/" + y.n
 				b.Run(s, func(b *testing.B) { y.f(b, y.s) })
 			}
-			blockfunc = blockfuncSaved
-		}
+		}()
 	}
 }
 
