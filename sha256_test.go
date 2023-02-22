@@ -2369,6 +2369,9 @@ func TestGoldenMarshal(t *testing.T) {
 		{"256", New, golden256},
 	}
 
+	if _, ok := New().(*digest); !ok {
+		t.Skip("no hash extensions, skipping stdlib testing")
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, g := range tt.gold {
