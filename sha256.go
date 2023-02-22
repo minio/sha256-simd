@@ -19,6 +19,7 @@ package sha256
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"hash"
 	"runtime"
 
@@ -91,7 +92,7 @@ var avx512 = cpuid.CPU.Supports(cpuid.AVX512F, cpuid.AVX512DQ, cpuid.AVX512BW, c
 
 // hasSHAExtensions return  whether the cpu supports SHA extensions.
 func hasSHAExtensions() bool {
-	return cpuid.CPU.Supports(cpuid.SHA, cpuid.SSSE3, cpuid.SSE4) && runtime.GOARCH == "amd64"
+	return runtime.GOARCH == "amd64" && cpuid.CPU.Supports(cpuid.SHA, cpuid.SSSE3, cpuid.SSE4)
 }
 
 // New returns a new hash.Hash computing the SHA256 checksum.
@@ -396,4 +397,61 @@ var _K = []uint32{
 	0xa4506ceb,
 	0xbef9a3f7,
 	0xc67178f2,
+}
+
+const (
+	magic256      = "sha\x03"
+	marshaledSize = len(magic256) + 8*4 + chunk + 8
+)
+
+func (d *digest) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 0, marshaledSize)
+	b = append(b, magic256...)
+	b = binary.BigEndian.AppendUint32(b, d.h[0])
+	b = binary.BigEndian.AppendUint32(b, d.h[1])
+	b = binary.BigEndian.AppendUint32(b, d.h[2])
+	b = binary.BigEndian.AppendUint32(b, d.h[3])
+	b = binary.BigEndian.AppendUint32(b, d.h[4])
+	b = binary.BigEndian.AppendUint32(b, d.h[5])
+	b = binary.BigEndian.AppendUint32(b, d.h[6])
+	b = binary.BigEndian.AppendUint32(b, d.h[7])
+	b = append(b, d.x[:d.nx]...)
+	b = b[:len(b)+len(d.x)-d.nx] // already zero
+	b = binary.BigEndian.AppendUint64(b, d.len)
+	return b, nil
+}
+
+func (d *digest) UnmarshalBinary(b []byte) error {
+	if len(b) < len(magic256) || string(b[:len(magic256)]) != magic256 {
+		return errors.New("crypto/sha256: invalid hash state identifier")
+	}
+	if len(b) != marshaledSize {
+		return errors.New("crypto/sha256: invalid hash state size")
+	}
+	b = b[len(magic256):]
+	b, d.h[0] = consumeUint32(b)
+	b, d.h[1] = consumeUint32(b)
+	b, d.h[2] = consumeUint32(b)
+	b, d.h[3] = consumeUint32(b)
+	b, d.h[4] = consumeUint32(b)
+	b, d.h[5] = consumeUint32(b)
+	b, d.h[6] = consumeUint32(b)
+	b, d.h[7] = consumeUint32(b)
+	b = b[copy(d.x[:], b):]
+	b, d.len = consumeUint64(b)
+	d.nx = int(d.len % chunk)
+	return nil
+}
+
+func consumeUint64(b []byte) ([]byte, uint64) {
+	_ = b[7]
+	x := uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 | uint64(b[4])<<24 |
+		uint64(b[3])<<32 | uint64(b[2])<<40 | uint64(b[1])<<48 | uint64(b[0])<<56
+	return b[8:], x
+}
+
+func consumeUint32(b []byte) ([]byte, uint32) {
+	_ = b[3]
+	x := uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24
+	return b[4:], x
 }
