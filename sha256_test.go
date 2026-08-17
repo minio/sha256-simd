@@ -57,6 +57,7 @@ import (
 	"hash"
 	"io"
 	"runtime"
+	"runtime/metrics"
 	"strings"
 	"testing"
 	"time"
@@ -2489,13 +2490,32 @@ func TestAllocations(t *testing.T) {
 
 var sinkSTW []byte
 
-// BenchmarkSTW reports how long a garbage collection had to wait while a hash
-// ran alongside it, as gcwait-ns/op. The assembly is not preemptible, so a call
-// that covers the whole input keeps every P in stop-the-world for as long as it
-// runs, and no goroutine in the process makes progress meanwhile. Bounding the
-// call at maxAsmSize gives the collector a way in between chunks.
+// stoppingPauses reads the histogram of stop-the-world stopping pauses, the time
+// the runtime spends waiting for every P to halt. Returns nil if the running
+// toolchain does not have the metric (it arrived in Go 1.22).
+func stoppingPauses() ([]uint64, []float64) {
+	s := []metrics.Sample{{Name: "/sched/pauses/stopping/gc:seconds"}}
+	metrics.Read(s)
+	if s[0].Value.Kind() != metrics.KindFloat64Histogram {
+		return nil, nil
+	}
+	h := s[0].Value.Float64Histogram()
+	return append([]uint64(nil), h.Counts...), h.Buckets
+}
+
+// BenchmarkSTW measures what a hash costs the collector, two ways.
 //
-// Generic is pure Go and therefore always preemptible, so it is the floor this
+// gcwait-ns/op is the wall time of one runtime.GC() that overlaps the hash.
+// That is the whole forced collection, not the stop-the-world pause alone, but
+// it is what a caller actually waits for and it is stable enough to compare.
+//
+// worst-stw-ns is the real thing: the longest /sched/pauses/stopping/gc:seconds
+// sample recorded during the run, which is the time the runtime spent waiting
+// for every P to halt. Reported as a histogram bucket upper bound, so read it
+// as "at most". Non-preemptible assembly inflates this directly, because the P
+// running it cannot halt until the call returns.
+//
+// Generic is pure Go and therefore always preemptible, so it is the floor these
 // can reach rather than a comparison. Run with GOMAXPROCS >= 2, otherwise the
 // hash and the collection never overlap and every case reads as clean.
 func BenchmarkSTW(b *testing.B) {
@@ -2526,14 +2546,20 @@ func BenchmarkSTW(b *testing.B) {
 			var iters int
 			b.SetBytes(int64(len(buf)))
 			b.ResetTimer()
+			countsBefore, _ := stoppingPauses()
 			for i := 0; i < b.N; i++ {
 				done := make(chan struct{})
+				hashing := make(chan struct{})
 				go func() {
 					defer close(done)
 					d := New()
+					close(hashing)
 					d.Write(buf)
 					sinkSTW = d.Sum(nil)
 				}()
+				// Wait until the hash goroutine is running, so the collection
+				// below cannot finish before the hash has even started.
+				<-hashing
 				start := time.Now()
 				runtime.GC() // one per iteration, so the mean is well defined
 				total += time.Since(start)
@@ -2541,6 +2567,16 @@ func BenchmarkSTW(b *testing.B) {
 				<-done
 			}
 			b.ReportMetric(float64(total.Nanoseconds())/float64(iters), "gcwait-ns/op")
+
+			if countsAfter, buckets := stoppingPauses(); countsBefore != nil && countsAfter != nil {
+				var worst float64
+				for i := range countsAfter {
+					if countsAfter[i] > countsBefore[i] {
+						worst = buckets[i+1] // bucket upper bound
+					}
+				}
+				b.ReportMetric(worst*1e9, "worst-stw-ns")
+			}
 		})
 	}
 }
