@@ -56,8 +56,10 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 type sha256Test struct {
@@ -2482,5 +2484,63 @@ func TestAllocations(t *testing.T) {
 	}))
 	if n > 0 {
 		t.Errorf("allocs = %d, want 0", n)
+	}
+}
+
+var sinkSTW []byte
+
+// BenchmarkSTW reports how long a garbage collection had to wait while a hash
+// ran alongside it, as gcwait-ns/op. The assembly is not preemptible, so a call
+// that covers the whole input keeps every P in stop-the-world for as long as it
+// runs, and no goroutine in the process makes progress meanwhile. Bounding the
+// call at maxAsmSize gives the collector a way in between chunks.
+//
+// Generic is pure Go and therefore always preemptible, so it is the floor this
+// can reach rather than a comparison. Run with GOMAXPROCS >= 2, otherwise the
+// hash and the collection never overlap and every case reads as clean.
+func BenchmarkSTW(b *testing.B) {
+	type alg struct {
+		n string
+		t blockfuncType
+	}
+	algos := []alg{{"Generic", blockfuncForceGeneric}}
+	if hasIntelSha {
+		algos = append(algos, alg{"IntelSHA", blockfuncIntelSha})
+	}
+	if hasArmSha2() {
+		algos = append(algos, alg{"ArmSha2", blockfuncArmSha2})
+	}
+	if runtime.GOMAXPROCS(0) < 2 {
+		b.Skip("needs GOMAXPROCS >= 2 for the hash and the collection to overlap")
+	}
+
+	buf := make([]byte, 64<<20)
+	for _, a := range algos {
+		a := a
+		b.Run(a.n, func(b *testing.B) {
+			orig := blockfunc
+			defer func() { blockfunc = orig }()
+			blockfunc = a.t
+
+			var total time.Duration
+			var iters int
+			b.SetBytes(int64(len(buf)))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					d := New()
+					d.Write(buf)
+					sinkSTW = d.Sum(nil)
+				}()
+				start := time.Now()
+				runtime.GC() // one per iteration, so the mean is well defined
+				total += time.Since(start)
+				iters++
+				<-done
+			}
+			b.ReportMetric(float64(total.Nanoseconds())/float64(iters), "gcwait-ns/op")
+		})
 	}
 }

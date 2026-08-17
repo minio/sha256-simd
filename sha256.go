@@ -41,6 +41,15 @@ const (
 	init7 = 0x5BE0CD19
 )
 
+// The maximum number of bytes handed to block() in one call. The assembly
+// routines are not preemptible, so an unbounded call keeps every P in
+// stop-the-world for as long as it runs -- on a 64 MiB Write that is tens of
+// milliseconds during which no goroutine in the process makes progress.
+// crypto/sha256 bounds its own assembly the same way, see
+// https://github.com/golang/go/issues/64417.
+const maxAsmIters = 1024
+const maxAsmSize = chunk * maxAsmIters // 64KiB
+
 // digest represents the partial evaluation of a checksum.
 type digest struct {
 	h   [8]uint32
@@ -126,6 +135,11 @@ func (d *digest) Write(p []byte) (nn int, err error) {
 	}
 	if len(p) >= chunk {
 		n := len(p) &^ (chunk - 1)
+		for n > maxAsmSize {
+			block(d, p[:maxAsmSize])
+			p = p[maxAsmSize:]
+			n -= maxAsmSize
+		}
 		block(d, p[:n])
 		p = p[n:]
 	}
